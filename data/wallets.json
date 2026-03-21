@@ -1,0 +1,17 @@
+{
+  "observatory_geneva": {
+    "name": "Geneva",
+    "address": "rhmSgQUJWu419TCJTfRjwuMKXYPowQQX9G",
+    "seed": "sEd7yy3wUyy83S8PLE8vD52fD6QEMA6"
+  },
+  "researcher_alice": {
+    "name": "Alice",
+    "address": "rwcP3Go9zdZVL5Vmwia1Tt8SsGQw5VmCCj",
+    "seed": "sEd7ASAKzLjy2H8NTQpKD71Zj8zeXUY"
+  },
+  "amateur_bob": {
+    "name": "Bob",
+    "address": "rUjTbMc6o9cHPuDwSK5LcMTSYACgds3pGJ",
+    "seed": "sEdTgAGSAWhoBWMmju5An8ju63gBiUS"
+  }
+}

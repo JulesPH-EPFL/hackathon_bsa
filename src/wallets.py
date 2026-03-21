@@ -10,7 +10,7 @@ def create_wallet(name: str) -> dict:
     wallet = generate_faucet_wallet(client, debug=True)
     return {
         "name": name,
-        "adress": wallet.address,
+        "address": wallet.address,
         "seed": wallet.seed
     }
     
@@ -25,6 +25,7 @@ def add_wallet(name: str, role: str) -> dict:
         print("Ce portefeuille existe déjà !")
         return wallets[wallet_id]
     wallets[wallet_id] = create_wallet(name)
+    print(f"Wallet '{wallet_id}': {wallets[wallet_id]['address']}")
     with open(WALLETS_FILE, "w") as f:
         json.dump(wallets, f, indent=2)
     return wallets[wallet_id]
