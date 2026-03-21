@@ -10,7 +10,7 @@ from xrpl.utils import xrp_to_drops
 from xrpl.transaction import submit_and_wait
 from xrpl.utils import str_to_hex
 from xrpl.utils import hex_to_str
-from src.config import client
+from src.config2 import client
 from src.wallets import get_wallet
 
 def mint_slot(id: str, metadata: dict) -> str:
