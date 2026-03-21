@@ -18,5 +18,25 @@
     "name": "Carlos",
     "address": "rQhx3feLbK3tF2MVFZzGeEbt9rJrbhgAz9",
     "seed": "sEd7KgToWPJrFnTmX5gM5NutLKLWFBM"
+  },
+  "chercheur_jules": {
+    "name": "Jules",
+    "address": "raxkzmkRkMWZKBBZ5UZqUmknNvQRGzEYcE",
+    "seed": "sEdT4Pqq7WAcJEq8c9TAC3CJQoXR1rk"
+  },
+  "observatoire_cern": {
+    "name": "CERN",
+    "address": "rLM6CkdGbPqsDtf5TXnvjkXSsFJn8RdEDm",
+    "seed": "sEdTcUG2ae6FrenweEwJxM5j1Ys6LTW"
+  },
+  "amateur_eliott": {
+    "name": "eliott",
+    "address": "rBaTGsAAecPcGCg7CGAaTuHdMNnVZFgAVL",
+    "seed": "sEdVkJU8oJPhPdDxpc8ZAPUhmay2Vog"
+  },
+  "researcher_marie": {
+    "name": "Marie",
+    "address": "r4u3XpgRFMgEMTpBEx7Zq2tZxcUYKGZ75N",
+    "seed": "sEd7fDeVV3LMBi5aoc5o9wb8dUgwrgU"
   }
 }

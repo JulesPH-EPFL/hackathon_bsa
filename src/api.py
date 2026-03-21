@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from src.wallets import load_wallets
 from src.wallets import add_wallet
+from src.wallets import get_public_wallet
 from src.nft import mint_slot
 from src.nft import create_sell_offer
 from src.nft import buy_slot
@@ -11,24 +12,16 @@ app = Flask(__name__)
 
 @app.route('/wallets', methods=['GET'])
 def get_wallets():
-    list_ = []
     wallets = load_wallets()
-    for key, wallet in wallets.items():
-        list_.append({
-            "id": key,
-            "name": wallet["name"],
-            "address": wallet["address"]
-        })
-    return jsonify(list_)
+    return jsonify([get_public_wallet(key) for key in wallets])
 
 @app.route('/wallets/add', methods=['POST'])
 def add_wallet_api():
     data = request.get_json()
     name = data["name"]
     role = data["role"]
-    result = add_wallet(name, role)
-    return jsonify({"name": result["name"],
-        "address": result["address"]})
+    result, wallet_id = add_wallet(name, role)
+    return jsonify(get_public_wallet(wallet_id))
     
 @app.route('/slots/mint', methods=['POST'])
 def mint_slot_api():
