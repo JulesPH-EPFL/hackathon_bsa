@@ -2,7 +2,7 @@ import json
 import os
 from xrpl.wallet import Wallet
 from xrpl.wallet import generate_faucet_wallet
-from src.config import client
+from src.config2 import client
 
 WALLETS_FILE = "data/wallets.json"
 

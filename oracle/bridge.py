@@ -14,11 +14,11 @@ for _p in [_here, _parent, _grand]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from wallets import add_wallet, get_wallet
-from nft import mint_slot, create_sell_offer, buy_slot
+from oracle.src.wallets import add_wallet, get_wallet
+from oracle.src.nft import mint_slot, create_sell_offer, buy_slot
 
 # ─── Ton code oracle ──────────────────────────────────────────────────────────
-import config2 as config
+import oracle.src.config2 as config
 from crypto_condition import JobCryptoKeys
 from quantum_executor import execute_job
 from xrpl_client import client_create_escrow, escrow_finish, EscrowJob
