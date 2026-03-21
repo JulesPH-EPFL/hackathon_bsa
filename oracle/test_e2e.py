@@ -1,18 +1,3 @@
-"""
-QuantumGrid Oracle — Test end-to-end (Testnet XRPL + Simulateur Qiskit)
-
-Ce script simule un job complet :
-  1. L'oracle génère un quote (condition)
-  2. Le client crée un EscrowCreate sur le testnet
-  3. L'oracle détecte l'escrow, exécute le circuit, finalize l'escrow
-  4. On vérifie que les résultats sont corrects
-
-Usage :
-  export ORACLE_WALLET_SEED="sXXXXXX..."
-  export CLIENT_WALLET_SEED="sYYYYYY..."   # wallet de test différent
-  python test_e2e.py
-"""
-
 import asyncio
 import os
 import uuid
@@ -36,10 +21,6 @@ from xrpl_client import (
 
 
 async def faucet_wallet() -> Wallet:
-    """
-    Appelle le faucet XRPL testnet directement via HTTP.
-    Compatible Python 3.9 — pas d'asyncio.run() imbriqué.
-    """
     async with httpx.AsyncClient(timeout=30) as http:
         r = await http.post("https://faucet.altnet.rippletest.net/accounts")
         r.raise_for_status()
@@ -113,7 +94,6 @@ async def run_e2e_test():
         log.info(f"   Oracle  : {oracle_wallet.address}")
         log.info(f"   Client  : {client_wallet.address}")
 
-        # 2. Oracle génère le keypair crypto pour ce job
         log.info("2. Oracle génère la condition (quote)...")
         job_id = str(uuid.uuid4())[:16]
         keys   = JobCryptoKeys()
@@ -267,3 +247,5 @@ async def run_e2e_test():
 
 if __name__ == "__main__":
     asyncio.run(run_e2e_test())
+
+    

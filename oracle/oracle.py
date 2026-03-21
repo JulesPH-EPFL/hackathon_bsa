@@ -1,23 +1,3 @@
-"""
-QuantumGrid Oracle — Boucle principale
-
-Flux complet pour un job :
-
-  1. [XRPL]    EscrowCreate détecté (client loue des qubits)
-  2. [Oracle]  Parse le circuit QASM depuis les memos
-  3. [Quantum] Exécute le circuit (IBM ou simulateur)
-  4. [Oracle]  Vérifie que les résultats sont cohérents
-  5. [XRPL]   EscrowFinish — révèle le fulfillment, libère les XRP
-  6. [XRPL]   Publie les résultats en memo on-chain
-
-En cas d'échec :
-  - L'oracle attend que le CancelAfter expire
-  - L'owner peut récupérer ses fonds via EscrowCancel
-
-Usage :
-  python oracle.py
-"""
-
 import asyncio
 import json
 import logging
@@ -52,7 +32,6 @@ log = structlog.get_logger()
 # ─── Validation ───────────────────────────────────────────────────────────────
 
 def validate_job(job: EscrowJob) -> Optional[str]:
-    """Retourne un message d'erreur si le job est invalide, sinon None."""
     if not job.qasm or len(job.qasm) < 10:
         return "Circuit QASM vide ou trop court"
     if job.shots <= 0 or job.shots > config.MAX_SHOTS:
@@ -69,8 +48,7 @@ async def process_job(
     wallet:  Wallet,
     job:     EscrowJob,
 ) -> None:
-    """Pipeline complet : validation → exécution → paiement → publication."""
-
+ 
     log.info("job_received",
              job_id=job.job_id,
              amount_xrp=str(int(job.amount_drops) / 1_000_000),
@@ -142,13 +120,11 @@ async def process_job(
 # ─── Job Store (à remplacer par Redis/Postgres en production) ─────────────────
 
 class InMemoryJobStore:
-    """Stocke les paires (condition, fulfillment) par job_id."""
 
     def __init__(self):
         self._store: dict[str, dict] = {}
 
     def create_quote(self, job_id: str) -> JobCryptoKeys:
-        """Génère et stocke les clés crypto pour un nouveau job."""
         keys = JobCryptoKeys()
         self._store[job_id] = {
             "keys": keys,
@@ -180,17 +156,7 @@ JOB_STORE = InMemoryJobStore()
 # ─── API Quote (pré-escrow) ───────────────────────────────────────────────────
 
 async def handle_quote_request(job_id: Optional[str] = None) -> dict:
-    """
-    Endpoint appelé par le client AVANT de créer l'escrow.
 
-    Retourne :
-      - job_id   : identifiant unique du job
-      - condition: hex à mettre dans EscrowCreate.Condition
-      - price_xrp: tarif estimé (selon shots demandés)
-
-    Le fulfillment correspondant est gardé secret par l'oracle
-    jusqu'à la livraison des résultats.
-    """
     jid  = job_id or str(uuid.uuid4())[:16]
     keys = JOB_STORE.create_quote(jid)
 
@@ -205,7 +171,6 @@ async def handle_quote_request(job_id: Optional[str] = None) -> dict:
 # ─── Boucle principale ────────────────────────────────────────────────────────
 
 async def run_oracle():
-    """Lance l'oracle en écoute continue sur le ledger XRPL."""
 
     if not config.ORACLE_WALLET_SEED:
         log.error("ORACLE_WALLET_SEED manquant dans .env")

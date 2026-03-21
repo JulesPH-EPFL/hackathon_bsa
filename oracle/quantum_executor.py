@@ -1,11 +1,3 @@
-"""
-QuantumGrid Oracle — Quantum Executor
-
-Reçoit un circuit Qiskit sérialisé (QASM 3.0 ou OpenQASM 2.0),
-l'exécute sur IBM Quantum réel ou sur simulateur local,
-et retourne les résultats + un hash d'intégrité.
-"""
-
 import hashlib
 import json
 import time
@@ -46,11 +38,11 @@ class QuantumResult:
     job_id:        str
     backend:       str
     shots:         int
-    counts:        dict[str, int]          # {"00": 512, "11": 512}
-    quasi_dists:   dict[str, float]        # probabilités estimées
-    execution_time: float                  # secondes
-    result_hash:   str                     # SHA-256(counts JSON canonique)
-    circuit_hash:  str                     # SHA-256(QASM brut)
+    counts:        dict[str, int]   
+    quasi_dists:   dict[str, float]      
+    execution_time: float                
+    result_hash:   str                   
+    circuit_hash:  str                   
     timestamp:     float = field(default_factory=time.time)
     error:         Optional[str] = None
     success:       bool = True
@@ -80,7 +72,6 @@ def _counts_to_quasi(counts: dict, shots: int) -> dict:
 # ─── Simulateur local ─────────────────────────────────────────────────────────
 
 def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
-    """Exécution locale via Qiskit Aer (pas besoin d'IBM)."""
     qasm_str = _circuit_to_qasm(circuit)
     c_hash   = _circuit_hash(qasm_str)
 
@@ -114,7 +105,6 @@ def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> Quantu
 # ─── IBM Quantum réel ─────────────────────────────────────────────────────────
 
 def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
-    """Exécution sur un backend IBM Quantum réel via IBM Runtime SamplerV2."""
     if not IBM_AVAILABLE:
         raise RuntimeError("qiskit_ibm_runtime non installé — utilisez le simulateur.")
     if not config.IBM_TOKEN:
@@ -139,7 +129,6 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     result  = job_ibm.result()
     elapsed = time.perf_counter() - t0
 
-    # SamplerV2 retourne DataBin — conversion en counts classiques
     pub_result = result[0]
     bitarray   = pub_result.data.meas
     counts: dict[str, int] = {}
@@ -165,10 +154,7 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
 # ─── Point d'entrée principal ─────────────────────────────────────────────────
 
 def execute_job(qasm: str, shots: int, job_id: str) -> QuantumResult:
-    """
-    Exécute un circuit QASM et retourne QuantumResult.
-    Bascule automatiquement sur le simulateur si USE_SIMULATOR=true.
-    """
+    
     shots = min(shots, config.MAX_SHOTS)
 
     try:

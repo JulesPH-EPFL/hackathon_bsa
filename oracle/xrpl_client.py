@@ -1,14 +1,3 @@
-"""
-QuantumGrid Oracle — XRPL Client
-
-Fonctions :
-  - Surveiller les EscrowCreate destinés à l'oracle (via WebSocket)
-  - Parser les memos QASM encodés en hex
-  - Créer un EscrowCreate (côté provider, test)
-  - Finaliser un EscrowFinish avec le fulfillment
-  - Annuler un EscrowCancel si le job échoue / expire
-"""
-
 import asyncio
 import json
 import logging
