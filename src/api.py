@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 from src.wallets import load_wallets
 from src.wallets import add_wallet
 from src.nft import mint_slot
+from src.nft import create_sell_offer
+from src.nft import buy_slot
+from src.nft import get_nfts
 
 app = Flask(__name__)
 
@@ -33,5 +36,24 @@ def mint_slot_api():
     metadata = data["metadata"]
     return jsonify({"nftoken_id": mint_slot(id, metadata)})
 
+@app.route('/slots/sell', methods=['POST'])
+def create_sell_offer_api():
+    data = request.get_json()
+    id = data["id"]
+    nftoken_id = data["nftoken_id"]
+    price_xrp = data["price_xrp"]
+    return jsonify({"offer_id": create_sell_offer(id, nftoken_id, price_xrp)})
+
+@app.route('/slots/buy', methods=["POST"])
+def buy_slot_api():
+    data = request.get_json()
+    buyer_id = data["buyer_id"]
+    offer_id = data["offer_id"]
+    return jsonify({"nftoken_id": buy_slot(buyer_id, offer_id)})
+
+@app.route('/slots/<address>', methods=["GET"])
+def get_nfts_api(address):
+    return jsonify({"nfts": get_nfts(address)})
+    
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
