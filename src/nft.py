@@ -3,6 +3,7 @@ from xrpl.models.transactions import NFTokenMint
 from xrpl.models.transactions.nftoken_mint import NFTokenMintFlag
 from xrpl.models.transactions import NFTokenCreateOffer
 from xrpl.models.transactions.nftoken_create_offer import NFTokenCreateOfferFlag
+from xrpl.models.transactions import NFTokenAcceptOffer
 from xrpl.utils import xrp_to_drops
 from xrpl.transaction import submit_and_wait
 from xrpl.utils import str_to_hex
@@ -35,5 +36,13 @@ def create_sell_offer(id: str, nftoken_id: str, price_xrp: float) -> str:
         flags=NFTokenCreateOfferFlag.TF_SELL_NFTOKEN  
     )
     response = submit_and_wait(tx, client, wallet)
-    offer_id = response.result["meta"]["offer_id"]
-    return offer_id
+    return response.result["meta"]["offer_id"]
+
+def buy_slot(buyer_id: str, offer_id: str) -> str:
+    wallet = get_wallet(buyer_id)
+    tx = NFTokenAcceptOffer(
+        account=wallet.address,
+        nftoken_sell_offer=offer_id
+    )
+    response = submit_and_wait(tx, client, wallet)
+    return response.result["meta"]["nftoken_id"]
