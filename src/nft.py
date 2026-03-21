@@ -4,10 +4,12 @@ from xrpl.models.transactions.nftoken_mint import NFTokenMintFlag
 from xrpl.models.transactions import NFTokenCreateOffer
 from xrpl.models.transactions.nftoken_create_offer import NFTokenCreateOfferFlag
 from xrpl.models.transactions import NFTokenAcceptOffer
+from xrpl.models.requests import NFTSellOffers
 from xrpl.models.requests import AccountNFTs
 from xrpl.utils import xrp_to_drops
 from xrpl.transaction import submit_and_wait
 from xrpl.utils import str_to_hex
+from xrpl.utils import hex_to_str
 from src.config import client
 from src.wallets import get_wallet
 
@@ -50,4 +52,12 @@ def buy_slot(buyer_id: str, offer_id: str) -> str:
 
 def get_nfts(address: str) -> list:
     infos = AccountNFTs(account=address)
-    return client.request(infos).result["account_nfts"]
+    nfts = client.request(infos).result["account_nfts"]
+    for nft in nfts:
+        if "URI" in nft:
+            nft["URI"] = hex_to_str(nft["URI"])
+    return nfts
+
+def get_sell_offers(nftoken_id: str) -> list:
+    response = client.request(NFTSellOffers(nft_id=nftoken_id))
+    return response.result.get("offers",[])

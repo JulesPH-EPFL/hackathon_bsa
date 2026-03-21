@@ -5,6 +5,7 @@ from src.nft import mint_slot
 from src.nft import create_sell_offer
 from src.nft import buy_slot
 from src.nft import get_nfts
+from src.nft import get_sell_offers
 
 app = Flask(__name__)
 
@@ -54,6 +55,10 @@ def buy_slot_api():
 @app.route('/slots/<address>', methods=["GET"])
 def get_nfts_api(address):
     return jsonify({"nfts": get_nfts(address)})
+
+@app.route('/offers/<nftoken_id>', methods=["GET"])
+def get_sell_offers_api(nftoken_id):
+    return jsonify({"offers": get_sell_offers(nftoken_id)})
     
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
