@@ -13,5 +13,10 @@
     "name": "Bob",
     "address": "rUjTbMc6o9cHPuDwSK5LcMTSYACgds3pGJ",
     "seed": "sEdTgAGSAWhoBWMmju5An8ju63gBiUS"
+  },
+  "researcher_carlos": {
+    "name": "Carlos",
+    "address": "rQhx3feLbK3tF2MVFZzGeEbt9rJrbhgAz9",
+    "seed": "sEd7KgToWPJrFnTmX5gM5NutLKLWFBM"
   }
 }
