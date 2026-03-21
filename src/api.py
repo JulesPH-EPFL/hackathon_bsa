@@ -7,8 +7,10 @@ from src.nft import create_sell_offer
 from src.nft import buy_slot
 from src.nft import get_nfts
 from src.nft import get_sell_offers
+import requests as http_requests
 
 app = Flask(__name__)
+ORACLE_API = "http://localhost:5002"
 
 @app.route('/wallets', methods=['GET'])
 def get_wallets():
@@ -43,7 +45,20 @@ def buy_slot_api():
     data = request.get_json()
     buyer_id = data["buyer_id"]
     offer_id = data["offer_id"]
-    return jsonify({"nftoken_id": buy_slot(buyer_id, offer_id)})
+    amount_xrp = data["amount_xrp"]
+    finish_after = data["finish_after"]
+    
+    nftoken_id = buy_slot(buyer_id, offer_id)
+    
+    observatory_address = get_public_wallet(data["observatory_id"])["address"]
+    http_requests.post(f"{ORACLE_API}/escrow/create", json={
+        "buyer_id": buyer_id,
+        "observatory_address": observatory_address,
+        "amount_xrp": amount_xrp,
+        "finish_after": finish_after
+    })
+    
+    return jsonify({"nftoken_id": nftoken_id})
 
 @app.route('/slots/<address>', methods=["GET"])
 def get_nfts_api(address):
