@@ -32,9 +32,6 @@ import config
 
 logger = logging.getLogger(__name__)
 
-
-# ─── Résultat d'un job ────────────────────────────────────────────────────────
-
 @dataclass
 class QuantumResult:
     job_id:         str
@@ -48,10 +45,9 @@ class QuantumResult:
     timestamp:      float = field(default_factory=time.time)
     error:          Optional[str] = None
     success:        bool = True
-    # Champs IBM — remplis seulement en mode IBM réel
-    ibm_job_id:     str = ""   # ID du job sur IBM Quantum (vérifiable)
-    ibm_backend:    str = ""   # nom du backend IBM utilisé
-    ibm_timestamp:  str = ""   # timestamp de fin du job IBM
+    ibm_job_id:     str = ""   
+    ibm_backend:    str = ""   
+    ibm_timestamp:  str = ""   
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=True)
@@ -81,7 +77,7 @@ def _counts_to_quasi(counts: dict, shots: int) -> dict:
     return {k: v / shots for k, v in counts.items()}
 
 
-# ─── Vérification IBM ─────────────────────────────────────────────────────────
+# ─── Vérification IBM 
 
 def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
     """
@@ -111,7 +107,6 @@ def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
         )
         job = service.job(ibm_job_id)
 
-        # Dans 0.43+, status() retourne directement une string
         raw_status = job.status()
         status = raw_status if isinstance(raw_status, str) else raw_status.name
 
@@ -147,7 +142,7 @@ def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
                 break
 
         return {
-            "verified":     True,  # job trouvé sur IBM = preuve suffisante
+            "verified":     True,  
             "status":       status,
             "backend":      backend_name,
             "counts_match": counts_match,
@@ -164,7 +159,7 @@ def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
         }
 
 
-# ─── Simulateur local ─────────────────────────────────────────────────────────
+# ─── Simulateur local 
 
 def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
     qasm_str = _circuit_to_qasm(circuit)
@@ -196,7 +191,7 @@ def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> Quantu
     )
 
 
-# ─── IBM Quantum réel ─────────────────────────────────────────────────────────
+# ─── IBM Quantum réel 
 
 def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
     if not IBM_AVAILABLE:
@@ -208,9 +203,9 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     c_hash   = _circuit_hash(qasm_str)
 
     service = QiskitRuntimeService(
-        channel  = "ibm_cloud",  # IBM Cloud
+        channel  = "ibm_cloud",  
         token    = config.IBM_TOKEN,
-        instance = config.IBM_INSTANCE,     # CRN de ton instance
+        instance = config.IBM_INSTANCE,     
     )
     backend    = service.backend(config.IBM_BACKEND)
     transpiled = transpile(circuit, backend)
@@ -227,8 +222,6 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     elapsed = time.perf_counter() - t0
 
     pub_result = result[0]
-    # Le nom du registre classique varie selon le circuit
-    # On prend le premier registre disponible dans DataBin
     data = pub_result.data
     register_name = list(data.__dict__.keys())[0]
     bitarray = getattr(data, register_name)
@@ -259,7 +252,7 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     )
 
 
-# ─── Point d'entrée ───────────────────────────────────────────────────────────
+# ─── Point d'entrée 
 
 def execute_job(qasm: str, shots: int, job_id: str) -> QuantumResult:
     shots = min(shots, config.MAX_SHOTS)

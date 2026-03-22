@@ -37,14 +37,14 @@ async def run_demo(provider_id: str, researcher_id: str):
 
     loop = asyncio.get_event_loop()
 
-    # ── 1. Wallets ────────────────────────────────────────────────────────────
+    # ── 1. Wallets 
     print("\n[1] Wallets prêts...")
     researcher_wallet = get_wallet(researcher_id)
     oracle_wallet     = Wallet.from_seed(config.ORACLE_WALLET_SEED)
     print(f"    Chercheur : {researcher_wallet.address}")
     print(f"    Oracle    : {oracle_wallet.address}")
 
-    # ── 2. Fournisseur mint un slot NFT ───────────────────────────────────────
+    # ── 2. Fournisseur mint un slot NFT 
     print("\n[2] CERN mint un slot de calcul quantique (NFT)...")
     nftoken_id = await loop.run_in_executor(
         None, partial(mint_slot, provider_id, {
@@ -54,7 +54,7 @@ async def run_demo(provider_id: str, researcher_id: str):
     )
     print(f"    NFT slot : {nftoken_id[:24]}...")
 
-    # ── 3. Chercheur achète le slot ───────────────────────────────────────────
+    # ── 3. Chercheur achète le slot 
     print("\n[3] Arnaud achète le slot...")
     offer_id = await loop.run_in_executor(
         None, partial(create_sell_offer, provider_id, nftoken_id, 0)
@@ -64,7 +64,7 @@ async def run_demo(provider_id: str, researcher_id: str):
     )
     print("    Slot acheté ✓")
 
-    # ── 4. Oracle génère la condition ─────────────────────────────────────────
+    # ── 4. Oracle génère la condition 
     print("\n[4] Oracle génère la condition cryptographique...")
     import uuid
     job_id = str(uuid.uuid4())[:16]
@@ -72,7 +72,7 @@ async def run_demo(provider_id: str, researcher_id: str):
     print(f"    job_id    : {job_id}")
     print(f"    condition : {keys.condition[:30]}...")
 
-    # ── 5. Chercheur crée l'escrow XRPL ──────────────────────────────────────
+    # ── 5. Chercheur crée l'escrow XRPL 
     print("\n[5] Arnaud crée l'escrow (1 XRP)...")
     async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
         escrow_response = await client_create_escrow(
@@ -119,7 +119,7 @@ async def run_demo(provider_id: str, researcher_id: str):
         )
         print(f"    Sequence  : {sequence}")
 
-        # ── 6. Oracle exécute le circuit ──────────────────────────────────────
+        # ── 6. Oracle exécute le circuit 
         print("\n[6] Oracle exécute le circuit quantique...")
         result = await loop.run_in_executor(
             None, partial(execute_job, BELL_CIRCUIT_QASM, 1024, job_id)
@@ -132,7 +132,7 @@ async def run_demo(provider_id: str, researcher_id: str):
         print(f"    Counts    : {result.counts}")
         print(f"    P(|00⟩)   : {p00:.1%}   P(|11⟩) : {p11:.1%}")
 
-        # ── 7. Vérification IBM (si mode réel) ───────────────────────────────────
+        # ── 7. Vérification IBM (si mode réel) 
         if not config.USE_SIMULATOR and result.ibm_job_id:
             print("\n[7] Vérification du job sur IBM Quantum...")
             verification = verify_ibm_job(result.ibm_job_id, result.counts)
@@ -147,7 +147,7 @@ async def run_demo(provider_id: str, researcher_id: str):
         else:
             print("\n[7] Mode simulateur — vérification IBM ignorée")
 
-        # ── 7b. Oracle libère le paiement ────────────────────────────────────
+        # ── 7b. Oracle libère le paiement 
         print("\n[7b] Oracle soumet EscrowFinish (paiement libéré)...")
         result_memo = {
             "job_id":      job_id,
@@ -176,7 +176,7 @@ async def run_demo(provider_id: str, researcher_id: str):
             commission_pct   = COMMISSION,
         )
 
-        # ── 8. Mint NFT résultat ──────────────────────────────────────────────
+        # ── 8. Mint NFT résultat 
         print("\n[8] Mint du NFT résultat (preuve on-chain)...")
         result_nft = await loop.run_in_executor(
             None, partial(mint_slot, provider_id, {
