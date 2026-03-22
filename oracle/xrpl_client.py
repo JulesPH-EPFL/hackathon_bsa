@@ -10,6 +10,7 @@ from xrpl.models.transactions import (
     EscrowCreate,
     EscrowFinish,
     EscrowCancel,
+    Payment,  
 )
 try:
     from xrpl.models.transactions.transaction import Memo, MemoWrapper
@@ -26,6 +27,18 @@ import config
 
 logger = logging.getLogger(__name__)
 
+
+async def pay_provider(client, oracle_wallet, provider_address, total_drops, commission_pct=0.10):
+    commission   = int(total_drops * commission_pct)
+    provider_cut = total_drops - commission
+    tx = Payment(
+        account     = oracle_wallet.address,
+        destination = provider_address,
+        amount      = str(provider_cut),
+    )
+    await submit_and_wait(tx, client, oracle_wallet)
+
+    
 # ─── Memo helpers ─────────────────────────────────────────────────────────────
 
 def hex_encode(s: str) -> str:

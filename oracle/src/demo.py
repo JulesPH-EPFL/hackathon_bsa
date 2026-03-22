@@ -1,7 +1,7 @@
 from src.nft import mint_slot, create_sell_offer, get_sell_offers, buy_slot, get_nfts
 from src.wallets import add_wallet, get_wallet
 
-result_j, j_id = add_wallet('Jules','chercheur')
+result_j, j_id = add_wallet('Arnaud','chercheur')
 result_c, c_id = add_wallet('CERN','observatoire')
 result_e, e_id = add_wallet('eliott','amateur')
 
@@ -21,4 +21,4 @@ buy_id = buy_slot(j_id, offer_id)
 print("Créneau acheté :", buy_id)
 
 nfts = get_nfts(result_j["address"])
-print("NFTs de Jules :", nfts)
+print("NFTs de Arnaud :", nfts)

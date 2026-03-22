@@ -14,6 +14,9 @@ from quantum_executor import execute_job
 from xrpl_client import client_create_escrow, escrow_finish, EscrowJob
 from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
+from xrpl_client import client_create_escrow, escrow_finish, EscrowJob, pay_provider
+
+COMMISSION = 0.10
 
 BELL_CIRCUIT_QASM = """
 OPENQASM 2.0;
@@ -52,9 +55,9 @@ async def run_demo(provider_id: str, researcher_id: str):
     print(f"    NFT slot : {nftoken_id[:24]}...")
 
     # ── 3. Chercheur achète le slot ───────────────────────────────────────────
-    print("\n[3] Jules achète le slot...")
+    print("\n[3] Arnaud achète le slot...")
     offer_id = await loop.run_in_executor(
-        None, partial(create_sell_offer, provider_id, nftoken_id, 1.0)
+        None, partial(create_sell_offer, provider_id, nftoken_id, 0)
     )
     await loop.run_in_executor(
         None, partial(buy_slot, researcher_id, offer_id)
@@ -70,7 +73,7 @@ async def run_demo(provider_id: str, researcher_id: str):
     print(f"    condition : {keys.condition[:30]}...")
 
     # ── 5. Chercheur crée l'escrow XRPL ──────────────────────────────────────
-    print("\n[5] Jules crée l'escrow (1 XRP)...")
+    print("\n[5] Arnaud crée l'escrow (1 XRP)...")
     async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
         escrow_response = await client_create_escrow(
             client         = client,
@@ -142,6 +145,16 @@ async def run_demo(provider_id: str, researcher_id: str):
         finish_result = finish.result.get("meta", {}).get("TransactionResult")
         print(f"    EscrowFinish → {finish_result}")
 
+        print("\n[7b] Oracle reverse la part du CERN...")
+        provider_wallet_data = get_wallet(provider_id)
+        await pay_provider(
+            client           = client,
+            oracle_wallet    = oracle_wallet,
+            provider_address = provider_wallet_data.address,
+            total_drops      = 1_000_000,
+            commission_pct   = COMMISSION,
+        )
+
         # ── 8. Mint NFT résultat ──────────────────────────────────────────────
         print("\n[8] Mint du NFT résultat (preuve on-chain)...")
         result_nft = await loop.run_in_executor(
@@ -163,5 +176,5 @@ async def run_demo(provider_id: str, researcher_id: str):
 
 if __name__ == "__main__":
     _, provider_id = add_wallet("CERN", "fournisseur")
-    result_r, researcher_id = add_wallet("Jules", "chercheur")
+    result_r, researcher_id = add_wallet("Arnaud", "chercheur")
     asyncio.run(run_demo(provider_id, researcher_id))
