@@ -11,9 +11,10 @@ from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
 from xrpl.models.requests import AccountTx
 
-import config
-from crypto_condition import JobCryptoKeys
-from xrpl_client import client_create_escrow, escrow_finish, EscrowJob, pay_provider
+import src.config2 as config
+from src.crypto_condition import JobCryptoKeys
+from src.xrpl_client import client_create_escrow, escrow_finish, EscrowJob, pay_provider
+
 
 COMMISSION = 0.10
 
@@ -364,9 +365,14 @@ async def run_telescope_demo(provider_address: str, researcher_seed: str, captur
 
         # Paiement CERN
         print(f"\n[6] Oracle reverse 90% au CERN...")
-        await pay_provider(client=client, oracle_wallet=oracle_wallet,
-                           provider_address=provider_address,
-                           total_drops=int(amount_xrp * 1_000_000), commission_pct=COMMISSION)
+        await pay_provider(
+            client           = client,
+            oracle_wallet    = oracle_wallet,
+            provider_address = provider_address,
+            total_drops      = int(amount_xrp * 1_000_000),
+            commission_pct   = COMMISSION,
+            job_id           = job_id
+        )
         print(f"    0.90 XRP → CERN   ({provider_address[:20]}...)")
         print(f"    0.10 XRP → Oracle (commission)")
 
@@ -388,6 +394,14 @@ async def run_telescope_demo(provider_address: str, researcher_seed: str, captur
     print(f"  {len(captures)} images livrées à Arnaud")
     print(f"  CERN payé · Oracle commissionné · Preuve on-chain")
     print("═" * 56 + "\n")
+    
+    return {
+        "job_id":      job_id,
+        "obs_hash":    obs_hash,
+        "captures":    len(captures),
+        "receipt_nft": receipt["nftoken_id"],
+        "result_nft":  result_nft,
+    }
 
 
 #  Point d'entrée pour client.py (passe des adresses) 
@@ -408,3 +422,4 @@ async def run_telescope_client(provider_address: str, researcher_address: str, a
 
 if __name__ == "__main__":
     print("Lancez via : python3 client.py telescope --client rXXX --provider rYYY")
+    
