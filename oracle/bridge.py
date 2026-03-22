@@ -153,6 +153,7 @@ async def run_demo(provider_id: str, researcher_id: str):
             provider_address = provider_wallet_data.address,
             total_drops      = 1_000_000,
             commission_pct   = COMMISSION,
+            job_id         = job_id,
         )
 
         # ── 8. Mint NFT résultat ──────────────────────────────────────────────
