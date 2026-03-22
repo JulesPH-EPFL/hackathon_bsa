@@ -18,5 +18,15 @@
     "name": "CERN",
     "address": "rn8YcqURNLoSuWCmZUnFWNBqVgM6VgGs3M",
     "seed": "sEdSLSZHxMmiNsya8KBZxQwNoWbQpuy"
+  },
+  "observatory_geneva": {
+    "name": "Geneva",
+    "address": "rpx7Q8EMQQLqVzGLB18gqheLmrabyMgJrS",
+    "seed": "sEdVYAX7FG8hGaewbvpMDeWtu99Qf94"
+  },
+  "researcher_alice": {
+    "name": "Alice",
+    "address": "rfmBtR4nrRGwWzkDZPwo89cU4eTBVwxZhv",
+    "seed": "sEdVM4eaxfzSTwWDb6dNm1ZeSL3mJ4m"
   }
 }

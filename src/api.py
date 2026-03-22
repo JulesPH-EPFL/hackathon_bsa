@@ -8,6 +8,7 @@ from src.nft import buy_slot
 from src.nft import get_nfts
 from src.nft import get_sell_offers
 import requests as http_requests
+from src.tokens import buy_minutes, redeem_minutes, get_minutes_balance
 
 app = Flask(__name__)
 ORACLE_API = "http://localhost:5002"
@@ -67,6 +68,35 @@ def get_nfts_api(address):
 @app.route('/offers/<nftoken_id>', methods=["GET"])
 def get_sell_offers_api(nftoken_id):
     return jsonify({"offers": get_sell_offers(nftoken_id)})
+
+@app.route('/minutes/buy', methods=['POST'])
+def buy_minutes_api():
+    data = request.get_json()
+    result = buy_minutes(
+        data["buyer_id"],
+        data["observatory_id"],
+        data["currency"],
+        data["minutes"],
+        data["price_xrp_per_minute"],
+        data["limit"]
+    )
+    return jsonify(result)
+
+@app.route('/minutes/redeem', methods=['POST'])
+def redeem_minutes_api():
+    data = request.get_json()
+    nftoken_id = redeem_minutes(
+        data["buyer_id"],
+        data["observatory_id"],
+        data["currency"],
+        data["minutes"]
+    )
+    return jsonify({"nftoken_id": nftoken_id})
+
+@app.route('/minutes/balance/<address>/<currency>/<issuer>', methods=['GET'])
+def get_minutes_balance_api(address, currency, issuer):
+    balance = get_minutes_balance(address, currency, issuer)
+    return jsonify({"balance": balance, "currency": currency})
     
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
