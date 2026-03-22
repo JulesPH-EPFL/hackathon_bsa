@@ -3,27 +3,19 @@ import json
 import time
 import sys
 import os
+from functools import partial
 
-# ─── Code du binôme ───────────────────────────────────────────────────────────
-# Cherche le dossier src/ dans les dossiers parents
-_here   = os.path.dirname(os.path.abspath(__file__))   # .../hackathon/oracle
-_parent = os.path.dirname(_here)                        # .../hackathon
-_grand  = os.path.dirname(_parent)                      # .../python
+from src.wallets import add_wallet, get_wallet
+from src.nft import mint_slot, create_sell_offer, buy_slot
 
-for _p in [_here, _parent, _grand]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-
-from oracle.src.wallets import add_wallet, get_wallet
-from oracle.src.nft import mint_slot, create_sell_offer, buy_slot
-
-# ─── Ton code oracle ──────────────────────────────────────────────────────────
-import oracle.src.config2 as config
-from crypto_condition import JobCryptoKeys
-from quantum_executor import execute_job
-from xrpl_client import client_create_escrow, escrow_finish, EscrowJob
+import src.config2 as config
+from src.crypto_condition import JobCryptoKeys
+from src.quantum_executor import execute_job
+from src.xrpl_client import client_create_escrow, escrow_finish, EscrowJob, pay_provider
 from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
+
+COMMISSION = 0.10
 
 BELL_CIRCUIT_QASM = """
 OPENQASM 2.0;
@@ -37,35 +29,41 @@ measure q[1] -> c[1];
 """.strip()
 
 
-async def run_demo():
+async def run_demo(provider_id: str, researcher_id: str):
     print("═══════════════════════════════════════════")
     print("     QuantumGrid — Démo Hackathon")
     print("═══════════════════════════════════════════")
 
-    # ── 1. Créer les wallets (code binôme) ────────────────────────────────────
-    print("\n[1] Création des wallets...")
-    _, provider_id   = add_wallet("CERN",  "fournisseur")
-    result_r, researcher_id = add_wallet("Jules", "chercheur")
+    loop = asyncio.get_event_loop()
+
+    # ── 1. Wallets ────────────────────────────────────────────────────────────
+    print("\n[1] Wallets prêts...")
     researcher_wallet = get_wallet(researcher_id)
     oracle_wallet     = Wallet.from_seed(config.ORACLE_WALLET_SEED)
     print(f"    Chercheur : {researcher_wallet.address}")
     print(f"    Oracle    : {oracle_wallet.address}")
 
-    # ── 2. Fournisseur mint un slot NFT (code binôme) ─────────────────────────
+    # ── 2. Fournisseur mint un slot NFT ───────────────────────────────────────
     print("\n[2] CERN mint un slot de calcul quantique (NFT)...")
-    nftoken_id = mint_slot(provider_id, {
-        "taxon": 1, "transfer_fee": 5,
-        "uri": "quantumgrid://slot/2qubits/bell_state"
-    })
+    nftoken_id = await loop.run_in_executor(
+        None, partial(mint_slot, provider_id, {
+            "taxon": 1, "transfer_fee": 5,
+            "uri": "quantumgrid://slot/2qubits/bell_state"
+        })
+    )
     print(f"    NFT slot : {nftoken_id[:24]}...")
 
-    # ── 3. Chercheur achète le slot (code binôme) ─────────────────────────────
+    # ── 3. Chercheur achète le slot ───────────────────────────────────────────
     print("\n[3] Jules achète le slot...")
-    offer_id = create_sell_offer(provider_id, nftoken_id, 1.0)
-    buy_slot(researcher_id, offer_id)
+    offer_id = await loop.run_in_executor(
+        None, partial(create_sell_offer, provider_id, nftoken_id, 0)
+    )
+    await loop.run_in_executor(
+        None, partial(buy_slot, researcher_id, offer_id)
+    )
     print("    Slot acheté ✓")
 
-    # ── 4. Oracle génère la condition (ton code) ──────────────────────────────
+    # ── 4. Oracle génère la condition ─────────────────────────────────────────
     print("\n[4] Oracle génère la condition cryptographique...")
     import uuid
     job_id = str(uuid.uuid4())[:16]
@@ -73,7 +71,7 @@ async def run_demo():
     print(f"    job_id    : {job_id}")
     print(f"    condition : {keys.condition[:30]}...")
 
-    # ── 5. Chercheur crée l'escrow XRPL (ton code) ────────────────────────────
+    # ── 5. Chercheur crée l'escrow XRPL ──────────────────────────────────────
     print("\n[5] Jules crée l'escrow (1 XRP)...")
     async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
         escrow_response = await client_create_escrow(
@@ -93,7 +91,6 @@ async def run_demo():
         if tx_result != "tesSUCCESS":
             raise RuntimeError(f"Escrow échoué : {tx_result}")
 
-        # Extraire le sequence
         sequence = (
             escrow_tx.get("Sequence") or
             escrow_tx.get("tx_json", {}).get("Sequence")
@@ -121,9 +118,11 @@ async def run_demo():
         )
         print(f"    Sequence  : {sequence}")
 
-        # ── 6. Oracle exécute le circuit (ton code) ───────────────────────────
+        # ── 6. Oracle exécute le circuit ──────────────────────────────────────
         print("\n[6] Oracle exécute le circuit quantique...")
-        result = execute_job(qasm=BELL_CIRCUIT_QASM, shots=1024, job_id=job_id)
+        result = await loop.run_in_executor(
+            None, partial(execute_job, BELL_CIRCUIT_QASM, 1024, job_id)
+        )
         if not result.success:
             raise RuntimeError(f"Exécution échouée : {result.error}")
         total = sum(result.counts.values())
@@ -132,7 +131,7 @@ async def run_demo():
         print(f"    Counts    : {result.counts}")
         print(f"    P(|00⟩)   : {p00:.1%}   P(|11⟩) : {p11:.1%}")
 
-        # ── 7. Oracle libère le paiement (ton code) ───────────────────────────
+        # ── 7. Oracle libère le paiement ──────────────────────────────────────
         print("\n[7] Oracle soumet EscrowFinish (paiement libéré)...")
         finish = await escrow_finish(
             client      = client,
@@ -144,14 +143,30 @@ async def run_demo():
         )
         finish_result = finish.result.get("meta", {}).get("TransactionResult")
         print(f"    EscrowFinish → {finish_result}")
+        
+        # ── 7b. Oracle paie le fournisseur ────────────────────────────────────
+        print("\n[7b] Oracle redistribue le paiement au fournisseur...")
+        provider_wallet = get_wallet(provider_id)
+        payment = await pay_provider(
+            client           = client,
+            oracle_wallet    = oracle_wallet,
+            provider_address = provider_wallet.classic_address,
+            total_drops      = 1_000_000,
+            commission_pct   = COMMISSION,
+            job_id           = job_id,
+        )
+        payment_result = payment.result.get("meta", {}).get("TransactionResult")
+        print(f"    Payment Fournisseur → {payment_result}")
 
-        # ── 8. Mint NFT résultat (code binôme) ────────────────────────────────
+        # ── 8. Mint NFT résultat ──────────────────────────────────────────────
         print("\n[8] Mint du NFT résultat (preuve on-chain)...")
-        result_nft = mint_slot(provider_id, {
-            "taxon": 2,
-            "transfer_fee": 0,
-            "uri": f"quantumgrid://result/{job_id}/{result.result_hash[:16]}",
-        })
+        result_nft = await loop.run_in_executor(
+            None, partial(mint_slot, provider_id, {
+                "taxon": 2,
+                "transfer_fee": 0,
+                "uri": f"quantumgrid://result/{job_id}/{result.result_hash[:16]}",
+            })
+        )
         print(f"    NFT résultat : {result_nft[:24]}...")
 
     print("\n═══════════════════════════════════════════")
@@ -163,4 +178,6 @@ async def run_demo():
 
 
 if __name__ == "__main__":
-    asyncio.run(run_demo())
+    _, provider_id = add_wallet("CERN", "fournisseur")
+    result_r, researcher_id = add_wallet("Jules", "chercheur")
+    asyncio.run(run_demo(provider_id, researcher_id))

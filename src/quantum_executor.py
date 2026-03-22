@@ -26,7 +26,7 @@ try:
 except ImportError:
     IBM_AVAILABLE = False
 
-import config
+import src.config2 as config2
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> Quantu
 def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
     if not IBM_AVAILABLE:
         raise RuntimeError("qiskit_ibm_runtime non installé — utilisez le simulateur.")
-    if not config.IBM_TOKEN:
+    if not config2.IBM_TOKEN:
         raise RuntimeError("IBM_QUANTUM_TOKEN manquant dans .env")
 
     qasm_str = _circuit_to_qasm(circuit)
@@ -115,13 +115,13 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
 
     service = QiskitRuntimeService(
         channel  = "ibm_quantum",
-        token    = config.IBM_TOKEN,
-        instance = config.IBM_INSTANCE,
+        token    = config2.IBM_TOKEN,
+        instance = config2.IBM_INSTANCE,
     )
-    backend    = service.backend(config.IBM_BACKEND)
+    backend    = service.backend(config2.IBM_BACKEND)
     transpiled = transpile(circuit, backend)
 
-    logger.info(f"[{job_id}] IBM backend={config.IBM_BACKEND} — {shots} shots")
+    logger.info(f"[{job_id}] IBM backend={config2.IBM_BACKEND} — {shots} shots")
     t0 = time.perf_counter()
 
     sampler = Sampler(backend)
@@ -141,7 +141,7 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
 
     return QuantumResult(
         job_id         = job_id,
-        backend        = config.IBM_BACKEND,
+        backend        = config2.IBM_BACKEND,
         shots          = shots,
         counts         = counts,
         quasi_dists    = _counts_to_quasi(counts, shots),
@@ -155,7 +155,7 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
 
 def execute_job(qasm: str, shots: int, job_id: str) -> QuantumResult:
     
-    shots = min(shots, config.MAX_SHOTS)
+    shots = min(shots, config2.MAX_SHOTS)
 
     try:
         circuit = qasm2_loads(qasm)
@@ -168,7 +168,7 @@ def execute_job(qasm: str, shots: int, job_id: str) -> QuantumResult:
         )
 
     try:
-        if config.USE_SIMULATOR:
+        if config2.USE_SIMULATOR:
             return run_on_simulator(circuit, shots, job_id)
         else:
             return run_on_ibm(circuit, shots, job_id)

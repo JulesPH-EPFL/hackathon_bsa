@@ -1,42 +1,22 @@
 {
-  "observatory_geneva": {
-    "name": "Geneva",
-    "address": "rhmSgQUJWu419TCJTfRjwuMKXYPowQQX9G",
-    "seed": "sEd7yy3wUyy83S8PLE8vD52fD6QEMA6"
-  },
-  "researcher_alice": {
-    "name": "Alice",
-    "address": "rwcP3Go9zdZVL5Vmwia1Tt8SsGQw5VmCCj",
-    "seed": "sEd7ASAKzLjy2H8NTQpKD71Zj8zeXUY"
-  },
-  "amateur_bob": {
-    "name": "Bob",
-    "address": "rUjTbMc6o9cHPuDwSK5LcMTSYACgds3pGJ",
-    "seed": "sEdTgAGSAWhoBWMmju5An8ju63gBiUS"
-  },
-  "researcher_carlos": {
-    "name": "Carlos",
-    "address": "rQhx3feLbK3tF2MVFZzGeEbt9rJrbhgAz9",
-    "seed": "sEd7KgToWPJrFnTmX5gM5NutLKLWFBM"
-  },
   "chercheur_jules": {
     "name": "Jules",
-    "address": "raxkzmkRkMWZKBBZ5UZqUmknNvQRGzEYcE",
-    "seed": "sEdT4Pqq7WAcJEq8c9TAC3CJQoXR1rk"
+    "address": "rUpnpjwVQPx7VKEE1xoZYxwGerrLktaZYz",
+    "seed": "sEdVU1NPbKDpyj3eYyCcdVrmGzuRmmK"
   },
   "observatoire_cern": {
     "name": "CERN",
-    "address": "rLM6CkdGbPqsDtf5TXnvjkXSsFJn8RdEDm",
-    "seed": "sEdTcUG2ae6FrenweEwJxM5j1Ys6LTW"
+    "address": "rh5gQkZphjTf9DxjFWMkDvdyk7EpbRW31i",
+    "seed": "sEdVHVjZddDc8yGGTPmpGvRB6cU6tRS"
   },
   "amateur_eliott": {
     "name": "eliott",
-    "address": "rBaTGsAAecPcGCg7CGAaTuHdMNnVZFgAVL",
-    "seed": "sEdVkJU8oJPhPdDxpc8ZAPUhmay2Vog"
+    "address": "rUd6NN8AGRnvyEcgET2rDammG1mPn1nwqz",
+    "seed": "sEd7nB3BrGTbqGjTU3tRuPPTrxwyW73"
   },
-  "researcher_marie": {
-    "name": "Marie",
-    "address": "r4u3XpgRFMgEMTpBEx7Zq2tZxcUYKGZ75N",
-    "seed": "sEd7fDeVV3LMBi5aoc5o9wb8dUgwrgU"
+  "fournisseur_cern": {
+    "name": "CERN",
+    "address": "rn8YcqURNLoSuWCmZUnFWNBqVgM6VgGs3M",
+    "seed": "sEdSLSZHxMmiNsya8KBZxQwNoWbQpuy"
   }
 }

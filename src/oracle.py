@@ -9,7 +9,7 @@ import structlog
 from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
 
-import config
+import src.config2 as config2
 from crypto_condition import JobCryptoKeys, verify_fulfillment
 from quantum_executor import execute_job, QuantumResult
 from xrpl_client import (
@@ -23,7 +23,7 @@ from xrpl_client import (
 
 structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(
-        getattr(logging, config.LOG_LEVEL, logging.INFO)
+        getattr(logging, config2.LOG_LEVEL, logging.INFO)
     )
 )
 log = structlog.get_logger()
@@ -34,9 +34,9 @@ log = structlog.get_logger()
 def validate_job(job: EscrowJob) -> Optional[str]:
     if not job.qasm or len(job.qasm) < 10:
         return "Circuit QASM vide ou trop court"
-    if job.shots <= 0 or job.shots > config.MAX_SHOTS:
-        return f"Nombre de shots invalide : {job.shots} (max {config.MAX_SHOTS})"
-    if int(job.amount_drops) < config.MIN_ESCROW_DROPS:
+    if job.shots <= 0 or job.shots > config2.MAX_SHOTS:
+        return f"Nombre de shots invalide : {job.shots} (max {config2.MAX_SHOTS})"
+    if int(job.amount_drops) < config2.MIN_ESCROW_DROPS:
         return f"Montant insuffisant : {job.amount_drops} drops"
     return None
 
@@ -163,8 +163,8 @@ async def handle_quote_request(job_id: Optional[str] = None) -> dict:
     return {
         "job_id":    jid,
         "condition": keys.condition,
-        "oracle":    config.ORACLE_ADDRESS,
-        "dest_tag":  config.QUANTUMGRID_TAG,
+        "oracle":    config2.ORACLE_ADDRESS,
+        "dest_tag":  config2.QUANTUMGRID_TAG,
     }
 
 
@@ -172,18 +172,18 @@ async def handle_quote_request(job_id: Optional[str] = None) -> dict:
 
 async def run_oracle():
 
-    if not config.ORACLE_WALLET_SEED:
+    if not config2.ORACLE_WALLET_SEED:
         log.error("ORACLE_WALLET_SEED manquant dans .env")
         sys.exit(1)
 
-    wallet = Wallet.from_seed(config.ORACLE_WALLET_SEED)
+    wallet = Wallet.from_seed(config2.ORACLE_WALLET_SEED)
     log.info("oracle_started",
              address   = wallet.address,
-             network   = config.XRPL_WS_URL,
-             simulator = config.USE_SIMULATOR)
+             network   = config2.XRPL_WS_URL,
+             simulator = config2.USE_SIMULATOR)
 
-    async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
-        async with XRPLOracleWatcher(wallet.address, config.XRPL_WS_URL) as watcher:
+    async with AsyncWebsocketClient(config2.XRPL_WS_URL) as client:
+        async with XRPLOracleWatcher(wallet.address, config2.XRPL_WS_URL) as watcher:
             async for job in watcher.escrow_jobs():
                 # Traitement concurrent — ne bloque pas la surveillance
                 asyncio.create_task(

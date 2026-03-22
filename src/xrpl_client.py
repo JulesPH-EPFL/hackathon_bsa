@@ -10,6 +10,7 @@ from xrpl.models.transactions import (
     EscrowCreate,
     EscrowFinish,
     EscrowCancel,
+    Payment
 )
 try:
     from xrpl.models.transactions.transaction import Memo, MemoWrapper
@@ -22,7 +23,7 @@ from xrpl.utils import xrp_to_drops, drops_to_xrp
 from xrpl.asyncio.transaction import submit_and_wait
 from xrpl.models.response import Response
 
-import config
+import src.config2 as config2
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class XRPLOracleWatcher:
     destinés à l'oracle (filtrés par destination + DestinationTag).
     """
 
-    def __init__(self, oracle_address: str, ws_url: str = config.XRPL_WS_URL):
+    def __init__(self, oracle_address: str, ws_url: str = config2.XRPL_WS_URL):
         self.oracle_address = oracle_address
         self.ws_url         = ws_url
         self._client: Optional[AsyncWebsocketClient] = None
@@ -137,13 +138,13 @@ class XRPLOracleWatcher:
 
         # Filtre sur le DestinationTag QuantumGrid
         dest_tag = tx.get("DestinationTag")
-        if dest_tag != config.QUANTUMGRID_TAG:
+        if dest_tag != config2.QUANTUMGRID_TAG:
             logger.debug(f"EscrowCreate ignoré — DestinationTag={dest_tag}")
             return None
 
         # Montant minimum
         amount_drops = str(tx.get("Amount", "0"))
-        if int(amount_drops) < config.MIN_ESCROW_DROPS:
+        if int(amount_drops) < config2.MIN_ESCROW_DROPS:
             logger.warning(
                 f"Escrow trop petit : {drops_to_xrp(amount_drops)} XRP < minimum"
             )
@@ -264,7 +265,7 @@ async def client_create_escrow(
         account              = client_wallet.address,
         amount               = xrp_to_drops(xrp_amount),
         destination          = oracle_address,
-        destination_tag      = config.QUANTUMGRID_TAG,
+        destination_tag      = config2.QUANTUMGRID_TAG,
         condition            = condition,
         cancel_after         = cancel_after,
         last_ledger_sequence = current_ledger + 20,
@@ -275,3 +276,24 @@ async def client_create_escrow(
         ],
     )
     return await submit_and_wait(tx, client, client_wallet)
+
+async def pay_provider(
+    client: AsyncWebsocketClient,
+    oracle_wallet: Wallet,
+    provider_address: str,
+    total_drops: int,
+    commission_pct: float,
+    job_id: str,
+) -> Response:
+    commission    = int(total_drops * commission_pct)
+    provider_cut  = total_drops - commission
+    tx = Payment(
+        account     = oracle_wallet.address,
+        destination = provider_address,
+        amount      = str(provider_cut),
+        memos       = [build_memo("job_id", job_id)],
+    )
+    logger.info(f"[{job_id}] Paiement fournisseur {provider_cut} drops → {provider_address}")
+    response = await submit_and_wait(tx, client, oracle_wallet)
+    logger.info(f"[{job_id}] Payment → {response.result.get('meta', {}).get('TransactionResult')}")
+    return response

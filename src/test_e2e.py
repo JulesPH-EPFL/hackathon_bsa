@@ -9,7 +9,7 @@ import httpx
 from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
 
-import config
+import config2 as config2
 from crypto_condition import JobCryptoKeys, verify_fulfillment
 from quantum_executor import execute_job
 from xrpl_client import (
@@ -71,13 +71,13 @@ measure q[1] -> c[1];
 async def run_e2e_test():
     log.info("═══ QuantumGrid Oracle — Test E2E ═══")
 
-    async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
+    async with AsyncWebsocketClient(config2.XRPL_WS_URL) as client:
 
         # 1. Wallets de test
         # Priorité : variables .env → faucet automatique
         log.info("1. Création des wallets testnet...")
-        if config.ORACLE_WALLET_SEED:
-            oracle_wallet = Wallet.from_seed(config.ORACLE_WALLET_SEED)
+        if config2.ORACLE_WALLET_SEED:
+            oracle_wallet = Wallet.from_seed(config2.ORACLE_WALLET_SEED)
             log.info("   Oracle  : wallet chargé depuis .env")
         else:
             oracle_wallet = await faucet_wallet()
