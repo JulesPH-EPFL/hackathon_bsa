@@ -10,7 +10,7 @@ from src.nft import mint_slot, create_sell_offer, buy_slot
 
 import config as config
 from crypto_condition import JobCryptoKeys
-from quantum_executor import execute_job
+from quantum_executor import execute_job, verify_ibm_job
 from xrpl_client import client_create_escrow, escrow_finish, EscrowJob
 from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
@@ -132,20 +132,41 @@ async def run_demo(provider_id: str, researcher_id: str):
         print(f"    Counts    : {result.counts}")
         print(f"    P(|00⟩)   : {p00:.1%}   P(|11⟩) : {p11:.1%}")
 
-        # ── 7. Oracle libère le paiement ──────────────────────────────────────
-        print("\n[7] Oracle soumet EscrowFinish (paiement libéré)...")
+        # ── 7. Vérification IBM (si mode réel) ───────────────────────────────────
+        if not config.USE_SIMULATOR and result.ibm_job_id:
+            print("\n[7] Vérification du job sur IBM Quantum...")
+            verification = verify_ibm_job(result.ibm_job_id, result.counts)
+            print(f"    IBM Job ID  : {result.ibm_job_id}")
+            print(f"    Statut IBM  : {verification.get('status', '?')}")
+            print(f"    Backend IBM : {verification.get('backend', '?')}")
+            print(f"    Counts OK   : {verification.get('counts_match', False)}")
+            print(f"    URL preuve  : {result.ibm_verification_url()}")
+            if not verification["verified"]:
+                raise RuntimeError(f"Vérification IBM échouée : {verification['message']}")
+            print("    ✓ Job IBM vérifié — paiement autorisé")
+        else:
+            print("\n[7] Mode simulateur — vérification IBM ignorée")
+
+        # ── 7b. Oracle libère le paiement ────────────────────────────────────
+        print("\n[7b] Oracle soumet EscrowFinish (paiement libéré)...")
+        result_memo = {
+            "job_id":      job_id,
+            "counts":      result.counts,
+            "result_hash": result.result_hash,
+            "ibm_job_id":  result.ibm_job_id,
+            "ibm_url":     result.ibm_verification_url(),
+        }
         finish = await escrow_finish(
             client      = client,
             wallet      = oracle_wallet,
             job         = job,
             fulfillment = keys.fulfillment,
-            result_memo = {"job_id": job_id, "counts": result.counts,
-                           "result_hash": result.result_hash},
+            result_memo = result_memo,
         )
         finish_result = finish.result.get("meta", {}).get("TransactionResult")
         print(f"    EscrowFinish → {finish_result}")
 
-        print("\n[7b] Oracle reverse la part du CERN...")
+        print("\n[7c] Oracle reverse la part du CERN...")
         provider_wallet_data = get_wallet(provider_id)
         await pay_provider(
             client           = client,
@@ -153,7 +174,6 @@ async def run_demo(provider_id: str, researcher_id: str):
             provider_address = provider_wallet_data.address,
             total_drops      = 1_000_000,
             commission_pct   = COMMISSION,
-            job_id         = job_id,
         )
 
         # ── 8. Mint NFT résultat ──────────────────────────────────────────────

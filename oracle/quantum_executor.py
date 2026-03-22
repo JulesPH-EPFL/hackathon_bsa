@@ -4,7 +4,7 @@ import time
 import logging
 from dataclasses import dataclass, field, asdict
 from typing import Optional
-from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler, Session
+
 from qiskit import QuantumCircuit
 from qiskit.qasm2 import loads as qasm2_loads
 try:
@@ -105,7 +105,7 @@ def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
 
     try:
         service = QiskitRuntimeService(
-            channel  = "ibm_quantum",
+            channel  = "ibm_cloud",
             token    = config.IBM_TOKEN,
             instance = config.IBM_INSTANCE,
         )
@@ -200,9 +200,9 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     c_hash   = _circuit_hash(qasm_str)
 
     service = QiskitRuntimeService(
-        channel  = "ibm_quantum",
+        channel  = "ibm_cloud",  # IBM Cloud
         token    = config.IBM_TOKEN,
-        instance = config.IBM_INSTANCE,
+        instance = config.IBM_INSTANCE,     # CRN de ton instance
     )
     backend    = service.backend(config.IBM_BACKEND)
     transpiled = transpile(circuit, backend)
@@ -210,11 +210,11 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     logger.info(f"[{job_id}] IBM backend={config.IBM_BACKEND} — {shots} shots")
     t0 = time.perf_counter()
 
-    with Session(backend=backend) as session:
-        sampler = Sampler(session=session)
-        ibm_job = sampler.run([transpiled], shots=shots)
-        logger.info(f"[{job_id}] IBM Job ID : {ibm_job.job_id()}")
-        result  = ibm_job.result()
+    # Plan Open IBM — pas de Session, Sampler direct
+    sampler = Sampler(backend=backend)
+    ibm_job = sampler.run([transpiled], shots=shots)
+    logger.info(f"[{job_id}] IBM Job ID : {ibm_job.job_id()}")
+    result  = ibm_job.result()
 
     elapsed = time.perf_counter() - t0
 
