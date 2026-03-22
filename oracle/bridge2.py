@@ -31,14 +31,14 @@ async def run_client(provider_id: str, researcher_id: str):
 
     loop = asyncio.get_event_loop()
 
-    # ── 1. Wallets ────────────────────────────────────────────────────────────
+    #  1. Wallets 
     researcher_wallet = get_wallet(researcher_id)
     oracle_wallet     = Wallet.from_seed(config.ORACLE_WALLET_SEED)
     print(f"\n[1] Wallets chargés")
     print(f"    Chercheur : {researcher_wallet.address}")
     print(f"    Oracle    : {oracle_wallet.address}")
 
-    # ── 2. NFT slot ───────────────────────────────────────────────────────────
+    #  2. NFT slot 
     print("\n[2] CERN mint un slot de calcul quantique (NFT)...")
     nftoken_id = await loop.run_in_executor(
         None, partial(mint_slot, provider_id, {
@@ -55,14 +55,14 @@ async def run_client(provider_id: str, researcher_id: str):
     await loop.run_in_executor(None, partial(buy_slot, researcher_id, offer_id))
     print("    Slot acheté ✓")
 
-    # ── 3. Quote oracle ───────────────────────────────────────────────────────
+    #  3. Quote oracle 
     print("\n[4] Arnaud demande un quote à l'oracle...")
     job_id = str(uuid.uuid4())[:16]
     quote  = await oracle_module.handle_quote_request(job_id)
     print(f"    job_id    : {quote['job_id']}")
     print(f"    condition : {quote['condition'][:30]}...")
 
-    # ── 4. Escrow — c'est tout ce que le client fait ──────────────────────────
+    #  4. Escrow — c'est tout ce que le client fait 
     print("\n[5] Arnaud crée l'escrow (1 XRP)...")
     print(f"    Circuit   : Bell State (2 qubits)")
     print(f"    Montant   : 1 XRP")

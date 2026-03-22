@@ -1,8 +1,4 @@
 import asyncio
-import json
-import time
-import sys
-import os
 from functools import partial
 
 from src.wallets import add_wallet, get_wallet

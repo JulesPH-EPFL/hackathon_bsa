@@ -1,10 +1,8 @@
-import asyncio
 import json
 import logging
 import time
 from typing import AsyncIterator, Optional
 
-import xrpl
 from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.models.transactions import (
     EscrowCreate,
@@ -112,7 +110,6 @@ class XRPLOracleWatcher:
             await self._client.__aexit__(*args)
 
     async def escrow_jobs(self) -> AsyncIterator[EscrowJob]:
-        """Générateur asynchrone des nouveaux EscrowCreate."""
         async for message in self._client:
             try:
                 job = self._parse_message(message)

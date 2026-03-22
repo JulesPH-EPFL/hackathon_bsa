@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import sys
 import uuid
@@ -11,14 +10,13 @@ from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
 
 import config
-from crypto_condition import JobCryptoKeys, verify_fulfillment
+from crypto_condition import JobCryptoKeys
 from quantum_executor import execute_job, QuantumResult
 from escrow_monitor import monitor_escrows, register_escrow, unregister_escrow
 from xrpl_client import (
     XRPLOracleWatcher,
     EscrowJob,
     escrow_finish,
-    escrow_cancel,
     pay_provider,
 )
 
@@ -32,7 +30,7 @@ log = structlog.get_logger()
 COMMISSION = 0.10
 
 
-# ─── Job Store ────────────────────────────────────────────────────────────────
+#  Job Store 
 
 class InMemoryJobStore:
     def __init__(self):
@@ -60,7 +58,7 @@ class InMemoryJobStore:
 JOB_STORE = InMemoryJobStore()
 
 
-# ─── Quote (appelé par bridge.py avant l'escrow) ─────────────────────────────
+#  Quote (appelé par bridge.py avant l'escrow) 
 
 async def handle_quote_request(job_id: Optional[str] = None) -> dict:
 
@@ -75,7 +73,7 @@ async def handle_quote_request(job_id: Optional[str] = None) -> dict:
     }
 
 
-# ─── Validation ───────────────────────────────────────────────────────────────
+#  Validation 
 
 def validate_job(job: EscrowJob) -> Optional[str]:
     if not job.qasm or len(job.qasm) < 10:
@@ -87,7 +85,7 @@ def validate_job(job: EscrowJob) -> Optional[str]:
     return None
 
 
-# ─── Traitement automatique d'un job ─────────────────────────────────────────
+#  Traitement automatique d'un job 
 
 async def process_job(
     client: AsyncWebsocketClient,
@@ -216,7 +214,7 @@ async def process_job(
     log.info("job_complete", job_id=job.job_id)
 
 
-# ─── Boucle principale ────────────────────────────────────────────────────────
+#  Boucle principale 
 
 async def run_oracle():
     if not config.ORACLE_WALLET_SEED:
