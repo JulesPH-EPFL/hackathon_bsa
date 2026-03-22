@@ -40,6 +40,7 @@ async def run_demo(provider_id: str, researcher_id: str):
     # ── 1. Wallets 
     print("\n[1] Wallets prêts...")
     researcher_wallet = get_wallet(researcher_id)
+
     oracle_wallet     = Wallet.from_seed(config.ORACLE_WALLET_SEED)
     print(f"    Chercheur : {researcher_wallet.address}")
     print(f"    Oracle    : {oracle_wallet.address}")
@@ -198,4 +199,7 @@ async def run_demo(provider_id: str, researcher_id: str):
 if __name__ == "__main__":
     _, provider_id = add_wallet("CERN", "fournisseur")
     result_r, researcher_id = add_wallet("Arnaud", "chercheur")
+    from src.wallets import get_wallet
+    print(f"Fournisseur CERN   : {get_wallet(provider_id).address}")
+    print(f"Chercheur Arnaud   : {get_wallet(researcher_id).address}")
     asyncio.run(run_demo(provider_id, researcher_id))

@@ -68,7 +68,6 @@ class QuantumResult:
             return f"https://quantum.ibm.com/jobs/{self.ibm_job_id}"
         return ""
 
-
 def _circuit_hash(qasm: str) -> str:
     return hashlib.sha256(qasm.strip().encode()).hexdigest()
 
@@ -77,8 +76,7 @@ def _counts_to_quasi(counts: dict, shots: int) -> dict:
     return {k: v / shots for k, v in counts.items()}
 
 
-# ─── Vérification IBM 
-
+# Vérification IBM Quantum (pour les jobs réels)
 def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
     """
     Vérifie qu'un job IBM a bien été exécuté en le récupérant depuis l'API IBM.
@@ -118,11 +116,9 @@ def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
                 "ibm_job_id": ibm_job_id,
             }
 
-        # backend() retourne une string ou un objet selon la version
         raw_backend = job.backend()
         backend_name = raw_backend if isinstance(raw_backend, str) else raw_backend.name
 
-        # Récupérer les counts depuis IBM
         result   = job.result()
         pub      = result[0]
         data     = pub.data
@@ -132,7 +128,6 @@ def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
         for bs in bitarray.get_bitstrings():
             ibm_counts[bs] = ibm_counts.get(bs, 0) + 1
 
-        # Tolérance 10% — bruit quantique réel
         counts_match = True
         total = sum(ibm_counts.values())
         for state, count in expected_counts.items():
@@ -159,8 +154,7 @@ def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
         }
 
 
-# ─── Simulateur local 
-
+# Simulateur local
 def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
     qasm_str = _circuit_to_qasm(circuit)
     c_hash   = _circuit_hash(qasm_str)
@@ -191,8 +185,7 @@ def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> Quantu
     )
 
 
-# ─── IBM Quantum réel 
-
+#  IBM Quantum réel 
 def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
     if not IBM_AVAILABLE:
         raise RuntimeError("qiskit_ibm_runtime non installé")
@@ -213,7 +206,6 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     logger.info(f"[{job_id}] IBM backend={config.IBM_BACKEND} — {shots} shots")
     t0 = time.perf_counter()
 
-    # qiskit-ibm-runtime 0.43+ : Sampler prend mode=backend
     sampler = Sampler(mode=backend)
     ibm_job = sampler.run([transpiled], shots=shots)
     logger.info(f"[{job_id}] IBM Job ID : {ibm_job.job_id()}")
@@ -252,8 +244,7 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     )
 
 
-# ─── Point d'entrée 
-
+#  Point d'entrée pour exécuter un job : appelé par oracle.py 
 def execute_job(qasm: str, shots: int, job_id: str) -> QuantumResult:
     shots = min(shots, config.MAX_SHOTS)
 

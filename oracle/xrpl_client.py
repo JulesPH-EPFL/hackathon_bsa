@@ -38,9 +38,8 @@ async def pay_provider(client, oracle_wallet, provider_address, total_drops, com
     )
     await submit_and_wait(tx, client, oracle_wallet)
 
-    
-# ─── Memo helpers ─────────────────────────────────────────────────────────────
 
+#  Memo helpers 
 def hex_encode(s: str) -> str:
     return s.encode("utf-8").hex().upper()
 
@@ -74,8 +73,7 @@ def parse_memos(tx: dict) -> dict[str, str]:
     return result
 
 
-# ─── Structures de données ────────────────────────────────────────────────────
-
+#  Structures de données et classes pour représenter les jobs et les opérations sur les escrows
 from dataclasses import dataclass, field
 
 
@@ -83,20 +81,19 @@ from dataclasses import dataclass, field
 class EscrowJob:
     """Représente un escrow QuantumGrid détecté on-chain."""
     tx_hash:       str
-    sequence:      int          # sequence du EscrowCreate (nécessaire pour EscrowFinish)
-    owner:         str          # adresse du client (créateur de l'escrow)
-    destination:   str          # adresse de l'oracle
+    sequence:      int        
+    owner:         str       
+    destination:   str      
     amount_drops:  str
-    condition:     str          # hex condition fournie par le client
-    cancel_after:  Optional[int]  # timestamp ripple epoch
-    # Champs extraits des memos
+    condition:     str         
+    cancel_after:  Optional[int] 
     qasm:          str  = ""
     shots:         int  = 1024
     job_id:        str  = ""
-    client_pubkey: str  = ""    # pour retourner les résultats chiffrés (optionnel)
+    client_pubkey: str  = ""  
 
 
-# ─── Surveillance des EscrowCreate ───────────────────────────────────────────
+#  Surveillance des EscrowCreate destinés à l'oracle 
 
 class XRPLOracleWatcher:
     """
@@ -112,7 +109,6 @@ class XRPLOracleWatcher:
     async def __aenter__(self):
         self._client = AsyncWebsocketClient(self.ws_url)
         await self._client.__aenter__()
-        # S'abonner au compte oracle
         await self._client.send(Subscribe(accounts=[self.oracle_address]))
         logger.info(f"Connecté à {self.ws_url} — surveillance de {self.oracle_address}")
         return self
@@ -135,26 +131,22 @@ class XRPLOracleWatcher:
         if not isinstance(message, dict):
             return None
 
-        # Les messages de type 'transaction' arrivent dans message["transaction"]
         tx_envelope = message.get("transaction") or message.get("tx_json")
         if not tx_envelope:
             return None
 
         tx = tx_envelope if "TransactionType" in tx_envelope else message
 
-        # Filtre : EscrowCreate destiné à notre oracle
         if tx.get("TransactionType") != "EscrowCreate":
             return None
         if tx.get("Destination") != self.oracle_address:
             return None
 
-        # Filtre sur le DestinationTag QuantumGrid
         dest_tag = tx.get("DestinationTag")
         if dest_tag != config.QUANTUMGRID_TAG:
             logger.debug(f"EscrowCreate ignoré — DestinationTag={dest_tag}")
             return None
 
-        # Montant minimum
         amount_drops = str(tx.get("Amount", "0"))
         if int(amount_drops) < config.MIN_ESCROW_DROPS:
             logger.warning(
@@ -169,7 +161,6 @@ class XRPLOracleWatcher:
 
         memos = parse_memos(tx)
 
-        # Le QASM du circuit est encodé dans le memo "qasm"
         qasm = memos.get("qasm", "")
         if not qasm:
             logger.warning(f"EscrowCreate sans memo 'qasm' — ignoré")
@@ -192,7 +183,7 @@ class XRPLOracleWatcher:
         )
 
 
-# ─── Opérations de transaction ───────────────────────────────────────────────
+#  Opérations de transaction 
 
 async def escrow_finish(
     client: AsyncWebsocketClient,
@@ -201,13 +192,6 @@ async def escrow_finish(
     fulfillment: str,
     result_memo: dict,
 ) -> Response:
-    """
-    Soumet un EscrowFinish pour libérer les fonds vers l'oracle.
-
-    Args:
-        fulfillment : hex du preimage ASN.1 (révélé après livraison)
-        result_memo : dict JSON avec les résultats quantiques (ajouté en memo)
-    """
     tx = EscrowFinish(
         account      = wallet.address,
         owner        = job.owner,
@@ -228,10 +212,6 @@ async def escrow_cancel(
     job: EscrowJob,
     reason: str = "job_failed",
 ) -> Response:
-    """
-    Annule un escrow (si le job a échoué ou expiré).
-    Seul l'owner peut annuler après CancelAfter.
-    """
     tx = EscrowCancel(
         account        = wallet.address,
         owner          = job.owner,
@@ -244,32 +224,21 @@ async def escrow_cancel(
     return response
 
 
-# ─── Helper côté client (pour les tests / SDK) ───────────────────────────────
-
+#  Helper côté client pour créer un EscrowCreate (utilisé dans les tests ou dans le SDK client)
 async def client_create_escrow(
     client: AsyncWebsocketClient,
     client_wallet: Wallet,
     oracle_address: str,
-    condition: str,        # hex — généré par l'oracle au moment du quote
+    condition: str,       
     xrp_amount: float,
     qasm: str,
     shots: int,
     job_id: str,
     ttl_seconds: int = 300,
 ) -> Response:
-    """
-    Crée un EscrowCreate côté client.
-    Utilisé dans les tests ou dans le SDK QuantumGrid client.
-    """
-    # CancelAfter = epoch XRPL = Unix - 946684800
     xrpl_epoch_offset = 946684800
     cancel_after = int(time.time()) - xrpl_epoch_offset + ttl_seconds
 
-    # Récupérer le ledger courant pour fixer LastLedgerSequence manuellement
-    # xrpl-py met une fenêtre de ~4 ledgers par défaut (~16s), trop court sur testnet.
-    # On passe lastLedgerSequence=None pour que submit_and_wait le gère avec sa
-    # propre logique, ou on utilise un autofill avec une fenêtre plus large.
-    # Fenêtre large pour le testnet qui peut être lent
     ledger_resp = await client.request(Ledger(ledger_index="validated"))
     current_ledger = ledger_resp.result["ledger_index"]
 

@@ -12,14 +12,13 @@ from xrpl.wallet import Wallet
 import config
 from crypto_condition import JobCryptoKeys, verify_fulfillment
 from quantum_executor import execute_job, QuantumResult
+from escrow_monitor import monitor_escrows, register_escrow, unregister_escrow
 from xrpl_client import (
     XRPLOracleWatcher,
     EscrowJob,
     escrow_finish,
     escrow_cancel,
 )
-
-# ─── Logging ──────────────────────────────────────────────────────────────────
 
 structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(
@@ -29,41 +28,67 @@ structlog.configure(
 log = structlog.get_logger()
 
 
-# ─── Validation ───────────────────────────────────────────────────────────────
+#  Job Store en mémoire (inchangé) 
 
+class InMemoryJobStore:
+    def __init__(self):
+        self._store: dict[str, dict] = {}
+
+    def create_quote(self, job_id: str) -> JobCryptoKeys:
+        keys = JobCryptoKeys()
+        self._store[job_id] = {"keys": keys, "status": "quoted"}
+        return keys
+
+    def get_fulfillment(self, job_id: str) -> Optional[str]:
+        e = self._store.get(job_id)
+        return e["keys"].fulfillment if e else None
+
+    def get_condition(self, job_id: str) -> Optional[str]:
+        e = self._store.get(job_id)
+        return e["keys"].condition if e else None
+
+    def mark_done(self, job_id: str):
+        if job_id in self._store:
+            self._store[job_id]["status"] = "done"
+
+
+JOB_STORE = InMemoryJobStore()
+
+#  Validation des jobs entrants (exemples de règles simples)
 def validate_job(job: EscrowJob) -> Optional[str]:
     if not job.qasm or len(job.qasm) < 10:
         return "Circuit QASM vide ou trop court"
     if job.shots <= 0 or job.shots > config.MAX_SHOTS:
-        return f"Nombre de shots invalide : {job.shots} (max {config.MAX_SHOTS})"
+        return f"Shots invalide : {job.shots}"
     if int(job.amount_drops) < config.MIN_ESCROW_DROPS:
         return f"Montant insuffisant : {job.amount_drops} drops"
     return None
 
 
-# ─── Traitement d'un job ──────────────────────────────────────────────────────
-
+#  Traitement d'un job : exécution du circuit et fulfillment de l'escrow
 async def process_job(
-    client:  AsyncWebsocketClient,
-    wallet:  Wallet,
-    job:     EscrowJob,
+    client: AsyncWebsocketClient,
+    wallet: Wallet,
+    job:    EscrowJob,
 ) -> None:
- 
-    log.info("job_received",
-             job_id=job.job_id,
-             amount_xrp=str(int(job.amount_drops) / 1_000_000),
-             shots=job.shots,
-             owner=job.owner)
 
-    # 1. Validation
+    log.info("job_received",
+             job_id     = job.job_id,
+             amount_xrp = str(int(job.amount_drops) / 1_000_000),
+             shots      = job.shots,
+             owner      = job.owner)
+
     error = validate_job(job)
     if error:
         log.warning("job_invalid", job_id=job.job_id, reason=error)
         return
 
+    register_escrow(job)
+
+    keys = JOB_STORE.create_quote(job.job_id)
+
     log.info("job_executing", job_id=job.job_id)
 
-    # 3. Exécution quantique
     result: QuantumResult = execute_job(
         qasm   = job.qasm,
         shots  = job.shots,
@@ -71,32 +96,32 @@ async def process_job(
     )
 
     if not result.success:
-        log.error("job_failed",
-                  job_id=job.job_id,
-                  error=result.error)
+        log.error("job_failed", job_id=job.job_id, error=result.error)
+        unregister_escrow(job.job_id)
         return
 
     log.info("job_executed",
-             job_id       = job.job_id,
-             backend      = result.backend,
-             elapsed_s    = f"{result.execution_time:.2f}",
-             result_hash  = result.result_hash[:16])
+             job_id      = job.job_id,
+             backend     = result.backend,
+             elapsed_s   = f"{result.execution_time:.2f}",
+             result_hash = result.result_hash[:16])
 
-    # 4. Préparer le memo de résultat (publié on-chain)
     result_summary = {
         "job_id":       job.job_id,
         "backend":      result.backend,
         "shots":        result.shots,
-        "counts":       result.counts,       
-        "result_hash":  result.result_hash, 
+        "counts":       result.counts,
+        "result_hash":  result.result_hash,
         "circuit_hash": result.circuit_hash,
+        "ibm_job_id":   result.ibm_job_id,
+        "ibm_url":      result.ibm_verification_url(),
         "elapsed_s":    round(result.execution_time, 3),
     }
 
-    # 5. EscrowFinish — révèle le fulfillment, libère les XRP vers l'oracle
     fulfillment = JOB_STORE.get_fulfillment(job.job_id)
     if not fulfillment:
         log.error("fulfillment_not_found", job_id=job.job_id)
+        unregister_escrow(job.job_id)
         return
 
     try:
@@ -112,66 +137,15 @@ async def process_job(
                  job_id    = job.job_id,
                  tx_result = tx_result,
                  tx_hash   = response.result.get("hash", ""))
+        JOB_STORE.mark_done(job.job_id)
+        unregister_escrow(job.job_id)
 
     except Exception as e:
         log.error("escrow_finish_failed", job_id=job.job_id, error=str(e))
 
 
-# ─── Job Store (à remplacer par Redis/Postgres en production) ─────────────────
-
-class InMemoryJobStore:
-
-    def __init__(self):
-        self._store: dict[str, dict] = {}
-
-    def create_quote(self, job_id: str) -> JobCryptoKeys:
-        keys = JobCryptoKeys()
-        self._store[job_id] = {
-            "keys": keys,
-            "status": "quoted",
-        }
-        log.debug("quote_created", job_id=job_id, condition=keys.condition[:32])
-        return keys
-
-    def get_fulfillment(self, job_id: str) -> Optional[str]:
-        entry = self._store.get(job_id)
-        if entry:
-            return entry["keys"].fulfillment
-        return None
-
-    def get_condition(self, job_id: str) -> Optional[str]:
-        entry = self._store.get(job_id)
-        if entry:
-            return entry["keys"].condition
-        return None
-
-    def mark_done(self, job_id: str):
-        if job_id in self._store:
-            self._store[job_id]["status"] = "done"
-
-
-JOB_STORE = InMemoryJobStore()
-
-
-# ─── API Quote (pré-escrow) ───────────────────────────────────────────────────
-
-async def handle_quote_request(job_id: Optional[str] = None) -> dict:
-
-    jid  = job_id or str(uuid.uuid4())[:16]
-    keys = JOB_STORE.create_quote(jid)
-
-    return {
-        "job_id":    jid,
-        "condition": keys.condition,
-        "oracle":    config.ORACLE_ADDRESS,
-        "dest_tag":  config.QUANTUMGRID_TAG,
-    }
-
-
-# ─── Boucle principale ────────────────────────────────────────────────────────
-
+#  Boucle principale
 async def run_oracle():
-
     if not config.ORACLE_WALLET_SEED:
         log.error("ORACLE_WALLET_SEED manquant dans .env")
         sys.exit(1)
@@ -183,15 +157,16 @@ async def run_oracle():
              simulator = config.USE_SIMULATOR)
 
     async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
+
+        asyncio.create_task(
+            monitor_escrows(client, wallet, interval=30)
+        )
+        log.info("escrow_monitor_started")
+
         async with XRPLOracleWatcher(wallet.address, config.XRPL_WS_URL) as watcher:
             async for job in watcher.escrow_jobs():
-                # Traitement concurrent — ne bloque pas la surveillance
-                asyncio.create_task(
-                    process_job(client, wallet, job)
-                )
+                asyncio.create_task(process_job(client, wallet, job))
 
-
-# ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     try:

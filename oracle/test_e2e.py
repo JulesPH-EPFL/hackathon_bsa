@@ -19,7 +19,6 @@ from xrpl_client import (
     parse_memos,
 )
 
-
 async def faucet_wallet() -> Wallet:
     async with httpx.AsyncClient(timeout=30) as http:
         r = await http.post("https://faucet.altnet.rippletest.net/accounts")
@@ -51,7 +50,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("e2e_test")
 
-# ─── Circuit de test : Bell State ─────────────────────────────────────────────
+#  Circuit de test : Bell State 
 
 BELL_CIRCUIT_QASM = """
 OPENQASM 2.0;
@@ -66,15 +65,13 @@ measure q[0] -> c[0];
 measure q[1] -> c[1];
 """
 
-# ─── Test ─────────────────────────────────────────────────────────────────────
-
+#  Test 
 async def run_e2e_test():
     log.info("═══ QuantumGrid Oracle — Test E2E ═══")
 
     async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
 
         # 1. Wallets de test
-        # Priorité : variables .env → faucet automatique
         log.info("1. Création des wallets testnet...")
         if config.ORACLE_WALLET_SEED:
             oracle_wallet = Wallet.from_seed(config.ORACLE_WALLET_SEED)
@@ -129,7 +126,6 @@ async def run_e2e_test():
             log.error(f"Erreur EscrowCreate : {e}")
             return
 
-        # Extraire le Sequence depuis la réponse validée
         # xrpl-py peut le mettre à différents endroits selon la version
         def extract_sequence(tx: dict) -> int:
             candidates = [
@@ -242,8 +238,6 @@ async def run_e2e_test():
         except Exception as e:
             log.error(f"Erreur EscrowFinish : {e}")
 
-
-# ─── Entrypoint ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     asyncio.run(run_e2e_test())

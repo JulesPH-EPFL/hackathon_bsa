@@ -1,7 +1,6 @@
 import os
 import hashlib
 
-
 def _asn1_length(n: int) -> bytes:
     if n < 0x80:
         return bytes([n])
@@ -10,10 +9,8 @@ def _asn1_length(n: int) -> bytes:
     else:
         return bytes([0x82, (n >> 8) & 0xFF, n & 0xFF])
 
-
 def _asn1_tlv(tag: int, value: bytes) -> bytes:
     return bytes([tag]) + _asn1_length(len(value)) + value
-
 
 def _encode_uint(n: int) -> bytes:
     if n == 0:
@@ -24,14 +21,11 @@ def _encode_uint(n: int) -> bytes:
         n >>= 8
     return bytes(reversed(result))
 
-
 def generate_preimage(size: int = 32) -> bytes:
     return os.urandom(size)
 
-
 def make_fulfillment(preimage: bytes) -> bytes:
     return _asn1_tlv(0xA0, _asn1_tlv(0x80, preimage))
-
 
 def make_condition(preimage: bytes) -> bytes:
     fingerprint = hashlib.sha256(preimage).digest()
@@ -39,14 +33,11 @@ def make_condition(preimage: bytes) -> bytes:
     inner = _asn1_tlv(0x80, fingerprint) + _asn1_tlv(0x81, cost)
     return _asn1_tlv(0xA0, inner)
 
-
 def condition_hex(preimage: bytes) -> str:
     return make_condition(preimage).hex().upper()
 
-
 def fulfillment_hex(preimage: bytes) -> str:
     return make_fulfillment(preimage).hex().upper()
-
 
 def verify_fulfillment(fulfillment_h: str, condition_h: str) -> bool:
     try:
@@ -63,7 +54,6 @@ def verify_fulfillment(fulfillment_h: str, condition_h: str) -> bool:
         return condition_hex(preimage) == condition_h.upper()
     except Exception:
         return False
-
 
 def _selftest():
     preimage = bytes(32)
@@ -89,9 +79,7 @@ def _selftest():
     assert verify_fulfillment(ff.hex(), cond.hex()), "verify échoué"
     print("Crypto condition selftest OK — format XRPL validé")
 
-
 _selftest()
-
 
 class JobCryptoKeys:
     def __init__(self):
