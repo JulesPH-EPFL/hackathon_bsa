@@ -1,63 +1,56 @@
-import xrpl
-from xrpl.models.transactions import NFTokenMint
-from xrpl.models.transactions.nftoken_mint import NFTokenMintFlag
-from xrpl.models.transactions import NFTokenCreateOffer
-from xrpl.models.transactions.nftoken_create_offer import NFTokenCreateOfferFlag
-from xrpl.models.transactions import NFTokenAcceptOffer
-from xrpl.models.requests import NFTSellOffers
-from xrpl.models.requests import AccountNFTs
+from xrpl.models.transactions import Payment
 from xrpl.utils import xrp_to_drops
 from xrpl.transaction import submit_and_wait
-from xrpl.utils import str_to_hex
-from xrpl.utils import hex_to_str
+from xrpl.models.transactions.nftoken_mint import NFTokenMintFlag, NFTokenMint
+from xrpl.models.requests import AccountNFTs
+from xrpl.utils import str_to_hex, hex_to_str
 from src.config import client
 from src.wallets import get_wallet
 
-def mint_slot(id: str, metadata: dict) -> str:
-    wallet = get_wallet(id)
+def buy_and_certify(
+    buyer_seed: str,
+    observatory_address: str,
+    units: int,
+    currency: str,
+    date: str,
+    price_xrp_per_unit: float,
+    observatory_id: str
+) -> dict:
+    buyer_wallet = get_wallet(buyer_seed)
+    total_xrp = units * price_xrp_per_unit
+
+    payment_tx = Payment(
+        account=buyer_wallet.address,
+        destination=observatory_address,
+        amount=xrp_to_drops(total_xrp)
+    )
+    payment_response = submit_and_wait(payment_tx, client, buyer_wallet)
+    tx_hash = payment_response.result["hash"]
+
+    uri = f"observatory={observatory_id}&units={units}{currency}&price={price_xrp_per_unit}&total_xrp={total_xrp}&date={date}&tx_hash={tx_hash}"
+    
     mint_tx = NFTokenMint(
-        account=wallet.address,
-        nftoken_taxon=metadata["taxon"],
-        transfer_fee=metadata["transfer_fee"],
-        uri=str_to_hex(metadata["uri"]),
+        account=buyer_wallet.address,
+        nftoken_taxon=1,
+        transfer_fee=0,
+        uri=str_to_hex(uri),
         flags=NFTokenMintFlag.TF_TRANSFERABLE
     )
-    reply=""
-    try:
-        response=submit_and_wait(mint_tx,client,wallet)
-        reply=response.result["meta"]["nftoken_id"]
-    except xrpl.transaction.XRPLReliableSubmissionException as e:
-        reply=f"Submit failed: {e}"
-    return reply
+    mint_response = submit_and_wait(mint_tx, client, buyer_wallet)
+    nftoken_id = mint_response.result["meta"]["nftoken_id"]
 
-def create_sell_offer(id: str, nftoken_id: str, price_xrp: float) -> str:
-    wallet = get_wallet(id)
-    tx = NFTokenCreateOffer(
-        account=wallet.address,      
-        nftoken_id=nftoken_id,        
-        amount=xrp_to_drops(price_xrp), 
-        flags=NFTokenCreateOfferFlag.TF_SELL_NFTOKEN  
-    )
-    response = submit_and_wait(tx, client, wallet)
-    return response.result["meta"]["offer_id"]
-
-def buy_slot(buyer_id: str, offer_id: str) -> str:
-    wallet = get_wallet(buyer_id)
-    tx = NFTokenAcceptOffer(
-        account=wallet.address,
-        nftoken_sell_offer=offer_id
-    )
-    response = submit_and_wait(tx, client, wallet)
-    return response.result["meta"]["nftoken_id"]
-
+    return {
+        "tx_hash": tx_hash,
+        "nftoken_id": nftoken_id,
+        "units": units,
+        "total_xrp": total_xrp,
+        "observatory": observatory_id
+    }
+    
 def get_nfts(address: str) -> list:
-    infos = AccountNFTs(account=address)
-    nfts = client.request(infos).result["account_nfts"]
+    response = client.request(AccountNFTs(account=address))
+    nfts = response.result.get("account_nfts", [])
     for nft in nfts:
         if "URI" in nft:
             nft["URI"] = hex_to_str(nft["URI"])
     return nfts
-
-def get_sell_offers(nftoken_id: str) -> list:
-    response = client.request(NFTSellOffers(nft_id=nftoken_id))
-    return response.result.get("offers",[])
