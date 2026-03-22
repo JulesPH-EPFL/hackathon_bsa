@@ -2,6 +2,8 @@ from xrpl.models.transactions import Payment
 from xrpl.utils import xrp_to_drops
 from xrpl.transaction import submit_and_wait
 from xrpl.models.transactions.nftoken_mint import NFTokenMintFlag, NFTokenMint
+from xrpl.models.transactions import NFTokenCreateOffer, NFTokenAcceptOffer
+from xrpl.models.transactions.nftoken_create_offer import NFTokenCreateOfferFlag
 from xrpl.models.requests import AccountNFTs
 from xrpl.utils import str_to_hex, hex_to_str
 from src.config import client
@@ -54,3 +56,36 @@ def get_nfts(address: str) -> list:
         if "URI" in nft:
             nft["URI"] = hex_to_str(nft["URI"])
     return nfts
+
+def mint_slot(seed: str, metadata: dict) -> str:
+    wallet = get_wallet(seed)
+    mint_tx = NFTokenMint(
+        account=wallet.address,
+        nftoken_taxon=metadata["taxon"],
+        transfer_fee=metadata["transfer_fee"],
+        uri=str_to_hex(metadata["uri"]),
+        flags=NFTokenMintFlag.TF_TRANSFERABLE
+    )
+    response = submit_and_wait(mint_tx, client, wallet)
+    return response.result["meta"]["nftoken_id"]
+
+def create_sell_offer(seed: str, nftoken_id: str, price_xrp: float) -> str:
+    wallet = get_wallet(seed)
+    from xrpl.utils import xrp_to_drops
+    tx = NFTokenCreateOffer(
+        account=wallet.address,
+        nftoken_id=nftoken_id,
+        amount=str(int(xrp_to_drops(price_xrp))) if price_xrp > 0 else "0",
+        flags=NFTokenCreateOfferFlag.TF_SELL_NFTOKEN
+    )
+    response = submit_and_wait(tx, client, wallet)
+    return response.result["meta"]["offer_id"]
+
+def buy_slot(seed: str, offer_id: str) -> str:
+    wallet = get_wallet(seed)
+    tx = NFTokenAcceptOffer(
+        account=wallet.address,
+        nftoken_sell_offer=offer_id
+    )
+    response = submit_and_wait(tx, client, wallet)
+    return response.result["meta"]["nftoken_id"]
