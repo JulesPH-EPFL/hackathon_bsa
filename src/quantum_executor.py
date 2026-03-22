@@ -17,49 +17,56 @@ try:
 except ImportError:
     def _circuit_to_qasm(circuit) -> str:
         return circuit.qasm()
+
 from qiskit_aer import AerSimulator
 from qiskit.compiler import transpile
 
 try:
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+    from qiskit_ibm_runtime import Session
     IBM_AVAILABLE = True
 except ImportError:
     IBM_AVAILABLE = False
 
-import src.config2 as config2
+import src.config2 as config
 
 logger = logging.getLogger(__name__)
 
-
-# ─── Résultat d'un job ────────────────────────────────────────────────────────
-
 @dataclass
 class QuantumResult:
-    job_id:        str
-    backend:       str
-    shots:         int
-    counts:        dict[str, int]   
-    quasi_dists:   dict[str, float]      
-    execution_time: float                
-    result_hash:   str                   
-    circuit_hash:  str                   
-    timestamp:     float = field(default_factory=time.time)
-    error:         Optional[str] = None
-    success:       bool = True
+    job_id:         str
+    backend:        str
+    shots:          int
+    counts:         dict
+    quasi_dists:    dict
+    execution_time: float
+    result_hash:    str
+    circuit_hash:   str
+    timestamp:      float = field(default_factory=time.time)
+    error:          Optional[str] = None
+    success:        bool = True
+    ibm_job_id:     str = ""   
+    ibm_backend:    str = ""   
+    ibm_timestamp:  str = ""   
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=True)
 
     def canonical_hash(self) -> str:
-        """Hash déterministe du résultat — utilisé pour l'oracle trustless."""
         payload = json.dumps({
-            "job_id":      self.job_id,
-            "counts":      dict(sorted(self.counts.items())),
-            "shots":       self.shots,
+            "job_id":       self.job_id,
+            "counts":       dict(sorted(self.counts.items())),
+            "shots":        self.shots,
             "circuit_hash": self.circuit_hash,
+            "ibm_job_id":   self.ibm_job_id,
         }, sort_keys=True)
         return hashlib.sha256(payload.encode()).hexdigest()
 
+    def ibm_verification_url(self) -> str:
+        """URL publique pour vérifier le job sur IBM Quantum."""
+        if self.ibm_job_id:
+            return f"https://quantum.ibm.com/jobs/{self.ibm_job_id}"
+        return ""
 
 def _circuit_hash(qasm: str) -> str:
     return hashlib.sha256(qasm.strip().encode()).hexdigest()
@@ -69,8 +76,74 @@ def _counts_to_quasi(counts: dict, shots: int) -> dict:
     return {k: v / shots for k, v in counts.items()}
 
 
-# ─── Simulateur local ─────────────────────────────────────────────────────────
+# Vérification IBM Quantum (pour les jobs réels)
+def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
 
+    if not IBM_AVAILABLE:
+        return {"verified": False, "message": "qiskit_ibm_runtime non installé"}
+    if not config.IBM_TOKEN:
+        return {"verified": False, "message": "IBM_QUANTUM_TOKEN manquant dans .env"}
+    if not ibm_job_id:
+        return {"verified": False, "message": "Pas de ibm_job_id à vérifier"}
+
+    try:
+        service = QiskitRuntimeService(
+            channel  = "ibm_cloud",
+            token    = config.IBM_TOKEN,
+            instance = config.IBM_INSTANCE,
+        )
+        job = service.job(ibm_job_id)
+
+        raw_status = job.status()
+        status = raw_status if isinstance(raw_status, str) else raw_status.name
+
+        if status not in ("DONE", "job.done"):
+            return {
+                "verified":   False,
+                "status":     status,
+                "message":    f"Job IBM non terminé : {status}",
+                "ibm_job_id": ibm_job_id,
+            }
+
+        raw_backend = job.backend()
+        backend_name = raw_backend if isinstance(raw_backend, str) else raw_backend.name
+
+        result   = job.result()
+        pub      = result[0]
+        data     = pub.data
+        reg_name = list(data.__dict__.keys())[0]
+        bitarray = getattr(data, reg_name)
+        ibm_counts: dict[str, int] = {}
+        for bs in bitarray.get_bitstrings():
+            ibm_counts[bs] = ibm_counts.get(bs, 0) + 1
+
+        counts_match = True
+        total = sum(ibm_counts.values())
+        for state, count in expected_counts.items():
+            ibm_count = ibm_counts.get(state, 0)
+            if abs(ibm_count - count) / max(total, 1) > 0.10:
+                counts_match = False
+                break
+
+        return {
+            "verified":     True,  
+            "status":       status,
+            "backend":      backend_name,
+            "counts_match": counts_match,
+            "ibm_counts":   ibm_counts,
+            "ibm_job_id":   ibm_job_id,
+            "message":      "Job IBM vérifié avec succès",
+        }
+
+    except Exception as e:
+        return {
+            "verified": False,
+            "message":  f"Erreur vérification IBM : {e}",
+            "ibm_job_id": ibm_job_id,
+        }
+
+
+# Simulateur local
 def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
     qasm_str = _circuit_to_qasm(circuit)
     c_hash   = _circuit_hash(qasm_str)
@@ -78,62 +151,12 @@ def run_on_simulator(circuit: QuantumCircuit, shots: int, job_id: str) -> Quantu
     logger.info(f"[{job_id}] Simulateur local — {shots} shots, {circuit.num_qubits} qubits")
     t0 = time.perf_counter()
 
-    simulator  = AerSimulator()
-    transpiled = transpile(circuit, simulator)
-    job        = simulator.run(transpiled, shots=shots)
+    sim        = AerSimulator()
+    transpiled = transpile(circuit, sim)
+    job        = sim.run(transpiled, shots=shots)
     result     = job.result()
     counts     = result.get_counts()
-
-    elapsed = time.perf_counter() - t0
-
-    r_hash = hashlib.sha256(
-        json.dumps(dict(sorted(counts.items())), sort_keys=True).encode()
-    ).hexdigest()
-
-    return QuantumResult(
-        job_id        = job_id,
-        backend       = "aer_simulator",
-        shots         = shots,
-        counts        = counts,
-        quasi_dists   = _counts_to_quasi(counts, shots),
-        execution_time = elapsed,
-        result_hash   = r_hash,
-        circuit_hash  = c_hash,
-    )
-
-
-# ─── IBM Quantum réel ─────────────────────────────────────────────────────────
-
-def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
-    if not IBM_AVAILABLE:
-        raise RuntimeError("qiskit_ibm_runtime non installé — utilisez le simulateur.")
-    if not config2.IBM_TOKEN:
-        raise RuntimeError("IBM_QUANTUM_TOKEN manquant dans .env")
-
-    qasm_str = _circuit_to_qasm(circuit)
-    c_hash   = _circuit_hash(qasm_str)
-
-    service = QiskitRuntimeService(
-        channel  = "ibm_quantum",
-        token    = config2.IBM_TOKEN,
-        instance = config2.IBM_INSTANCE,
-    )
-    backend    = service.backend(config2.IBM_BACKEND)
-    transpiled = transpile(circuit, backend)
-
-    logger.info(f"[{job_id}] IBM backend={config2.IBM_BACKEND} — {shots} shots")
-    t0 = time.perf_counter()
-
-    sampler = Sampler(backend)
-    job_ibm = sampler.run([transpiled], shots=shots)
-    result  = job_ibm.result()
-    elapsed = time.perf_counter() - t0
-
-    pub_result = result[0]
-    bitarray   = pub_result.data.meas
-    counts: dict[str, int] = {}
-    for bitstring in bitarray.get_bitstrings():
-        counts[bitstring] = counts.get(bitstring, 0) + 1
+    elapsed    = time.perf_counter() - t0
 
     r_hash = hashlib.sha256(
         json.dumps(dict(sorted(counts.items())), sort_keys=True).encode()
@@ -141,7 +164,7 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
 
     return QuantumResult(
         job_id         = job_id,
-        backend        = config2.IBM_BACKEND,
+        backend        = "aer_simulator",
         shots          = shots,
         counts         = counts,
         quasi_dists    = _counts_to_quasi(counts, shots),
@@ -151,16 +174,73 @@ def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResul
     )
 
 
-# ─── Point d'entrée principal ─────────────────────────────────────────────────
+#  IBM Quantum réel 
+def run_on_ibm(circuit: QuantumCircuit, shots: int, job_id: str) -> QuantumResult:
+    if not IBM_AVAILABLE:
+        raise RuntimeError("qiskit_ibm_runtime non installé")
+    if not config.IBM_TOKEN:
+        raise RuntimeError("IBM_QUANTUM_TOKEN manquant dans .env")
 
+    qasm_str = _circuit_to_qasm(circuit)
+    c_hash   = _circuit_hash(qasm_str)
+
+    service = QiskitRuntimeService(
+        channel  = "ibm_cloud",  
+        token    = config.IBM_TOKEN,
+        instance = config.IBM_INSTANCE,     
+    )
+    backend    = service.backend(config.IBM_BACKEND)
+    transpiled = transpile(circuit, backend)
+
+    logger.info(f"[{job_id}] IBM backend={config.IBM_BACKEND} — {shots} shots")
+    t0 = time.perf_counter()
+
+    sampler = Sampler(mode=backend)
+    ibm_job = sampler.run([transpiled], shots=shots)
+    logger.info(f"[{job_id}] IBM Job ID : {ibm_job.job_id()}")
+    result  = ibm_job.result()
+
+    elapsed = time.perf_counter() - t0
+
+    pub_result = result[0]
+    data = pub_result.data
+    register_name = list(data.__dict__.keys())[0]
+    bitarray = getattr(data, register_name)
+    counts: dict[str, int] = {}
+    for bs in bitarray.get_bitstrings():
+        counts[bs] = counts.get(bs, 0) + 1
+
+    r_hash = hashlib.sha256(
+        json.dumps(dict(sorted(counts.items())), sort_keys=True).encode()
+    ).hexdigest()
+
+    ibm_finish_time = ibm_job.metrics().get("timestamps", {}).get("finished", "")
+
+    logger.info(f"[{job_id}] IBM terminé — {elapsed:.2f}s — job_id IBM : {ibm_job.job_id()}")
+
+    return QuantumResult(
+        job_id         = job_id,
+        backend        = config.IBM_BACKEND,
+        shots          = shots,
+        counts         = counts,
+        quasi_dists    = _counts_to_quasi(counts, shots),
+        execution_time = elapsed,
+        result_hash    = r_hash,
+        circuit_hash   = c_hash,
+        ibm_job_id     = ibm_job.job_id(),
+        ibm_backend    = backend.name,
+        ibm_timestamp  = ibm_finish_time,
+    )
+
+
+#  Point d'entrée pour exécuter un job : appelé par oracle.py 
 def execute_job(qasm: str, shots: int, job_id: str) -> QuantumResult:
-    
-    shots = min(shots, config2.MAX_SHOTS)
+    shots = min(shots, config.MAX_SHOTS)
 
     try:
         circuit = qasm2_loads(qasm)
     except Exception as e:
-        logger.error(f"[{job_id}] Circuit QASM invalide : {e}")
+        logger.error(f"[{job_id}] QASM invalide : {e}")
         return QuantumResult(
             job_id="", backend="", shots=0, counts={}, quasi_dists={},
             execution_time=0, result_hash="", circuit_hash="",
@@ -168,7 +248,7 @@ def execute_job(qasm: str, shots: int, job_id: str) -> QuantumResult:
         )
 
     try:
-        if config2.USE_SIMULATOR:
+        if config.USE_SIMULATOR:
             return run_on_simulator(circuit, shots, job_id)
         else:
             return run_on_ibm(circuit, shots, job_id)
