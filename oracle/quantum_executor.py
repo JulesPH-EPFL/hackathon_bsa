@@ -78,18 +78,7 @@ def _counts_to_quasi(counts: dict, shots: int) -> dict:
 
 # Vérification IBM Quantum (pour les jobs réels)
 def verify_ibm_job(ibm_job_id: str, expected_counts: dict) -> dict:
-    """
-    Vérifie qu'un job IBM a bien été exécuté en le récupérant depuis l'API IBM.
-    
-    Retourne :
-      {
-        "verified": True/False,
-        "status": "DONE" / "ERROR" / ...,
-        "backend": "ibm_nairobi",
-        "counts_match": True/False,
-        "message": "..."
-      }
-    """
+
     if not IBM_AVAILABLE:
         return {"verified": False, "message": "qiskit_ibm_runtime non installé"}
     if not config.IBM_TOKEN:

@@ -63,10 +63,7 @@ JOB_STORE = InMemoryJobStore()
 # ─── Quote (appelé par bridge.py avant l'escrow) ─────────────────────────────
 
 async def handle_quote_request(job_id: Optional[str] = None) -> dict:
-    """
-    Le client appelle cette fonction pour obtenir la condition
-    cryptographique à mettre dans son EscrowCreate.
-    """
+
     jid  = job_id or str(uuid.uuid4())[:16]
     keys = JOB_STORE.create_quote(jid)
     log.info("quote_issued", job_id=jid, condition=keys.condition[:20])
@@ -97,15 +94,7 @@ async def process_job(
     wallet: Wallet,
     job:    EscrowJob,
 ) -> None:
-    """
-    Cœur de l'oracle — appelé automatiquement quand un escrow est détecté.
 
-    1. Valide le job
-    2. Exécute le circuit quantique
-    3. Libère le paiement (EscrowFinish)
-    4. Paie le fournisseur
-    5. Mint le NFT résultat
-    """
     log.info("job_received",
              job_id     = job.job_id,
              amount_xrp = str(int(job.amount_drops) / 1_000_000),

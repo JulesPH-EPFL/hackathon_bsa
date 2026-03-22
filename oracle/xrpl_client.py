@@ -49,7 +49,6 @@ def hex_decode(h: str) -> str:
 
 
 def build_memo(memo_type: str, memo_data: str):
-    """Construit un memo XRPL typé (xrpl-py attend des objets Memo, pas des dicts)."""
     memo = Memo(
         memo_type=hex_encode(memo_type),
         memo_data=hex_encode(memo_data),
@@ -60,7 +59,6 @@ def build_memo(memo_type: str, memo_data: str):
 
 
 def parse_memos(tx: dict) -> dict[str, str]:
-    """Extrait tous les memos d'une transaction en dict {type: data}."""
     result = {}
     for memo_wrapper in tx.get("Memos", []):
         memo = memo_wrapper.get("Memo", {})
@@ -79,7 +77,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class EscrowJob:
-    """Représente un escrow QuantumGrid détecté on-chain."""
+
     tx_hash:       str
     sequence:      int        
     owner:         str       
@@ -96,10 +94,6 @@ class EscrowJob:
 #  Surveillance des EscrowCreate destinés à l'oracle 
 
 class XRPLOracleWatcher:
-    """
-    Se connecte au ledger via WebSocket et émet les EscrowCreate
-    destinés à l'oracle (filtrés par destination + DestinationTag).
-    """
 
     def __init__(self, oracle_address: str, ws_url: str = config.XRPL_WS_URL):
         self.oracle_address = oracle_address
