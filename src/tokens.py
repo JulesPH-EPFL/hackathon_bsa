@@ -20,7 +20,7 @@ def create_trustline(buyer_id: str, issuer_address: str, currency: str, limit: i
     response = submit_and_wait(tx, client, wallet)
     return response.result["meta"]["TransactionResult"]
 
-def send_minutes(observatory_id: str, buyer_address: str, currency: str, minutes: int) -> str:
+def send_units(observatory_id: str, buyer_address: str, currency: str, units: int) -> str:
     wallet = get_wallet(observatory_id)
     tx = Payment(
         account=wallet.address,
@@ -28,19 +28,19 @@ def send_minutes(observatory_id: str, buyer_address: str, currency: str, minutes
         amount=IssuedCurrencyAmount(
             currency=currency,
             issuer=wallet.address,
-            value=str(minutes)
+            value=str(units)
         )
     )
     response = submit_and_wait(tx, client, wallet)
     return response.result["meta"]["TransactionResult"]
 
-def buy_minutes(buyer_id: str, observatory_id: str, currency: str, minutes: int, price_xrp_per_minute: float, lim: int) -> dict:
+def buy_units(buyer_id: str, observatory_id: str, currency: str, units: int, price_xrp_per_unit: float, lim: int) -> dict:
     buyer_wallet = get_wallet(buyer_id)
     observatory_wallet = get_wallet(observatory_id)
     
     create_trustline(buyer_id,observatory_wallet.address,currency,lim)
     
-    total_xrp = minutes * price_xrp_per_minute
+    total_xrp = units * price_xrp_per_unit
     payment_tx = Payment(
         account=buyer_wallet.address,
         destination=observatory_wallet.address,
@@ -48,16 +48,16 @@ def buy_minutes(buyer_id: str, observatory_id: str, currency: str, minutes: int,
     )
     submit_and_wait(payment_tx, client, buyer_wallet)
     
-    send_minutes(observatory_id, buyer_wallet.address, currency, minutes)
+    send_units(observatory_id, buyer_wallet.address, currency, units)
     
     return {
         "buyer": buyer_wallet.address,
-        "minutes": minutes,
+        "units": units,
         "currency": currency,
         "total_xrp": total_xrp
     }
     
-def redeem_minutes(buyer_id: str, observatory_id: str, currency: str, minutes: int) -> str:
+def redeem_units(buyer_id: str, observatory_id: str, currency: str, units: int) -> str:
     buyer_wallet = get_wallet(buyer_id)
     observatory_wallet = get_wallet(observatory_id)
     
@@ -67,7 +67,7 @@ def redeem_minutes(buyer_id: str, observatory_id: str, currency: str, minutes: i
         amount=IssuedCurrencyAmount(
             currency=currency,
             issuer=observatory_wallet.address,
-            value=str(minutes)
+            value=str(units)
             )
     )
     submit_and_wait(tx, client, buyer_wallet)
@@ -75,7 +75,7 @@ def redeem_minutes(buyer_id: str, observatory_id: str, currency: str, minutes: i
     metadata = {
         "taxon": 1,
         "transfer_fee": 0,
-        "uri": f"{observatory_id}: {minutes} {currency} to: {buyer_id}"
+        "uri": f"{observatory_id}: {units} {currency} to: {buyer_id}"
     }
     
     nftoken_id = mint_slot(observatory_id, metadata)
@@ -85,7 +85,7 @@ def redeem_minutes(buyer_id: str, observatory_id: str, currency: str, minutes: i
     buy_slot(buyer_id, offer_id)
     return nftoken_id
 
-def get_minutes_balance(address: str, currency: str, issuer_address: str) -> float:
+def get_units_balance(address: str, currency: str, issuer_address: str) -> float:
     response = client.request(AccountLines(account=address))
     for line in response.result.get("lines", []):
         if line["currency"] == currency and line["account"] == issuer_address:

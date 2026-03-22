@@ -1,0 +1,29 @@
+[
+  {
+    "id": "observatory_geneva",
+    "type": "optical_telescope",
+    "name": "Observatoire de Gen\u00e8ve",
+    "currency": "MIN",
+    "price_xrp_per_unit": 0.1,
+    "min_units": 15,
+    "max_units": 240
+  },
+  {
+    "id": "observatoire_cern",
+    "type": "quantum_computer",
+    "name": "CERN Quantum Simulator",
+    "currency": "QBT",
+    "price_xrp_per_unit": 0.1,
+    "min_units": 15,
+    "max_units": 240
+  },
+  {
+    "id": "station_sonnblick",
+    "type": "weather_station",
+    "name": "Station Sonnblick 3106m",
+    "currency": "DAT",
+    "price_xrp_per_unit": 0.1,
+    "min_units": 15,
+    "max_units": 240
+  }
+]
