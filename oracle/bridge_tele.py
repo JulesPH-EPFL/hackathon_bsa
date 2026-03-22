@@ -6,18 +6,28 @@ import time
 import uuid
 from functools import partial
 
+from src.nft import buy_and_certify, mint_slot
 from xrpl.asyncio.clients import AsyncWebsocketClient
 from xrpl.wallet import Wallet
 from xrpl.models.requests import AccountTx
-
-from src.wallets import add_wallet, get_wallet
-from src.nft import mint_slot, create_sell_offer, buy_slot
 
 import config
 from crypto_condition import JobCryptoKeys
 from xrpl_client import client_create_escrow, escrow_finish, EscrowJob, pay_provider
 
 COMMISSION = 0.10
+
+
+def _find_seed(address: str) -> str:
+    import json, os
+    wallets_file = "data/wallets.json"
+    if os.path.exists(wallets_file):
+        with open(wallets_file) as f:
+            wallets = json.load(f)
+        for w in wallets.values():
+            if w.get("address") == address:
+                return w["seed"]
+    raise KeyError(f"Wallet {address} introuvable dans {wallets_file}")
 
 #  Objets célèbres du ciel 
 
@@ -92,7 +102,6 @@ class TelescopeController:
         return best, best_d
 
     def sky_to_screen(self, ra, dec):
-        """Convertit RA/Dec en position écran dans la carte du ciel."""
         x = int((ra / 360) * self.SKY_W)
         y = int((90 - dec) / 180 * self.SKY_H)
         return max(0, min(self.SKY_W - 1, x)), max(0, min(self.SKY_H - 1, y))
@@ -101,15 +110,15 @@ class TelescopeController:
         self.stdscr.clear()
         h, w = self.stdscr.getmaxyx()
 
-        sky_ox = 2   # offset x de la carte
-        sky_oy = 4   # offset y de la carte
+        sky_ox = 2   
+        sky_oy = 4   
 
-        # ── Titre ────────────────────────────────────────────────────────────
+        #  Titre 
         title = " CERN-T1  |  TelescopeGrid "
         self.stdscr.addstr(1, 2, title, curses.color_pair(3) | curses.A_BOLD)
         self.stdscr.addstr(2, 2, "─" * (self.SKY_W + 2), curses.color_pair(4))
 
-        # ── Fond étoilé ───────────────────────────────────────────────────────
+        #  Fond étoilé 
         for sx, sy in BG_STARS:
             bx = int(sx * self.SKY_W)
             by = int(sy * self.SKY_H)
@@ -118,7 +127,7 @@ class TelescopeController:
             except curses.error:
                 pass
 
-        # ── Objets célèbres ───────────────────────────────────────────────────
+        #  Objets célèbres 
         symbols = {"Nébuleuse": "◎", "Galaxie": "⊕", "Amas": "✦",
                    "Cluster": "✦", "Sirius": "★", "Betelgeuse": "★",
                    "Alpha": "★"}
@@ -134,7 +143,7 @@ class TelescopeController:
             except curses.error:
                 pass
 
-        # ── Marques des captures ──────────────────────────────────────────────
+        #  Marques des captures 
         for cap in self.captures:
             cx, cy = self.sky_to_screen(cap["ra"], cap["dec"])
             try:
@@ -142,7 +151,7 @@ class TelescopeController:
             except curses.error:
                 pass
 
-        # ── Réticule ──────────────────────────────────────────────────────────
+        #  Réticule 
         tx, ty = self.sky_to_screen(self.ra, self.dec)
         try:
             if ty > 0:
@@ -157,7 +166,7 @@ class TelescopeController:
         except curses.error:
             pass
 
-        # ── Bordure carte ─────────────────────────────────────────────────────
+        #  Bordure carte 
         border_y = sky_oy + self.SKY_H
         try:
             self.stdscr.addstr(sky_oy - 1, sky_ox - 1, "┌" + "─" * self.SKY_W + "┐", curses.color_pair(4))
@@ -168,7 +177,7 @@ class TelescopeController:
         except curses.error:
             pass
 
-        # ── Panel droit : infos ───────────────────────────────────────────────
+        #  Panel droit : infos 
         px = sky_ox + self.SKY_W + 3
         obj, dist = self.nearest_object()
 
@@ -190,7 +199,7 @@ class TelescopeController:
         except curses.error:
             pass
 
-        # ── Message bas ───────────────────────────────────────────────────────
+        #  Message bas 
         msg_y = border_y + 1
         try:
             if len(self.captures) >= 3:
@@ -256,9 +265,9 @@ def run_controller():
     return curses.wrapper(lambda s: TelescopeController(s).run())
 
 
-# ─── Flux XRPL + paiement ────────────────────────────────────────────────────
+#  Flux XRPL + paiement 
 
-async def run_telescope_demo(provider_id, researcher_id, captures):
+async def run_telescope_demo(provider_address: str, researcher_seed: str, captures: list, amount_xrp: float = 1.0):
     print("\n" + "═" * 56)
     print("  TelescopeGrid — Traitement XRPL")
     print("═" * 56)
@@ -266,43 +275,42 @@ async def run_telescope_demo(provider_id, researcher_id, captures):
     loop = asyncio.get_event_loop()
 
     # Wallets
-    researcher_wallet = get_wallet(researcher_id)
+    researcher_wallet = Wallet.from_seed(researcher_seed)
     oracle_wallet     = Wallet.from_seed(config.ORACLE_WALLET_SEED)
     print(f"\n  Chercheur : {researcher_wallet.address}")
     print(f"  Oracle    : {oracle_wallet.address}")
 
-    # NFT slot
-    print("\n[1] CERN mint un slot d'observation (NFT)...")
-    nftoken_id = await loop.run_in_executor(
-        None, partial(mint_slot, provider_id, {
-            "taxon": 1, "transfer_fee": 5,
-            "uri": "telescopegrid://slot/cern-t1/3captures",
-        })
-    )
-    print(f"    NFT slot : {nftoken_id[:28]}...")
-
-    print("[2] Arnaud achète le slot...")
-    offer_id = await loop.run_in_executor(
-        None, partial(create_sell_offer, provider_id, nftoken_id, 0)
-    )
-    await loop.run_in_executor(None, partial(buy_slot, researcher_id, offer_id))
-    print("    Slot acheté ✓")
-
     # Condition + Escrow
-    print("\n[3] Oracle génère la condition...")
+    print("\n[1] Oracle génère la condition...")
     job_id = str(uuid.uuid4())[:16]
     keys   = JobCryptoKeys()
     obs_hash = hashlib.sha256(json.dumps(captures, sort_keys=True).encode()).hexdigest()
     obs_payload = json.dumps({"captures": captures, "obs_hash": obs_hash}, separators=(",", ":"))
 
-    print(f"[4] Arnaud crée l'escrow (1 XRP)...")
+#  2. Chercheur paie et certifie 
+    print("\n[2a] Arnaud paie le CERN et crée son NFT reçu...")
+    receipt = await loop.run_in_executor(
+        None, partial(buy_and_certify,
+            researcher_seed,
+            provider_address,
+            int(amount_xrp * 10),
+            "QBT",
+            "2026-03-22",
+            0.1,
+            "cern_quantum"
+        )
+    )
+    print(f"    Paiement tx : {receipt['tx_hash'][:24]}...")
+    print(f"    NFT reçu    : {receipt['nftoken_id'][:24]}...")
+
+    print(f"\n[2b] Arnaud crée l'escrow ({amount_xrp} XRP)...")
     async with AsyncWebsocketClient(config.XRPL_WS_URL) as client:
         escrow_response = await client_create_escrow(
             client         = client,
             client_wallet  = researcher_wallet,
             oracle_address = oracle_wallet.address,
             condition      = keys.condition,
-            xrp_amount     = 1.0,
+            xrp_amount     = amount_xrp,
             qasm           = obs_payload,
             shots          = len(captures),
             job_id         = job_id,
@@ -327,24 +335,24 @@ async def run_telescope_demo(provider_id, researcher_id, captures):
         job = EscrowJob(
             tx_hash=escrow_tx.get("hash", ""), sequence=sequence,
             owner=researcher_wallet.address, destination=oracle_wallet.address,
-            amount_drops=str(1_000_000), condition=keys.condition,
+            amount_drops=str(int(amount_xrp * 1_000_000)), condition=keys.condition,
             cancel_after=None, qasm=obs_payload, shots=len(captures), job_id=job_id,
         )
 
         # Livraison des images
-        print(f"\n[5] Opérateur CERN photographie les cibles...")
+        print(f"\n[3] Opérateur CERN photographie les cibles...")
         for i, cap in enumerate(captures):
             time.sleep(0.6)
             print(f"    [{i+1}] {cap['name']:28s} → {cap['url']}")
 
         # Vérification
-        print(f"\n[6] Oracle vérifie les {len(captures)} images...")
+        print(f"\n[4] Oracle vérifie les {len(captures)} images...")
         for cap in captures:
             assert cap.get("hash"), f"Hash manquant pour {cap['name']}"
         print(f"    ✓ Toutes les images vérifiées")
 
         # EscrowFinish
-        print(f"\n[7] Oracle libère le paiement...")
+        print(f"\n[5] Oracle libère le paiement...")
         finish = await escrow_finish(
             client=client, wallet=oracle_wallet, job=job,
             fulfillment=keys.fulfillment,
@@ -355,23 +363,25 @@ async def run_telescope_demo(provider_id, researcher_id, captures):
         print(f"    EscrowFinish → {finish_result}")
 
         # Paiement CERN
-        print(f"\n[8] Oracle reverse 90% au CERN...")
-        provider_wallet = get_wallet(provider_id)
+        print(f"\n[6] Oracle reverse 90% au CERN...")
         await pay_provider(client=client, oracle_wallet=oracle_wallet,
-                           provider_address=provider_wallet.address,
-                           total_drops=1_000_000, commission_pct=COMMISSION)
-        print(f"    0.90 XRP → CERN   ({provider_wallet.address[:20]}...)")
+                           provider_address=provider_address,
+                           total_drops=int(amount_xrp * 1_000_000), commission_pct=COMMISSION)
+        print(f"    0.90 XRP → CERN   ({provider_address[:20]}...)")
         print(f"    0.10 XRP → Oracle (commission)")
 
-        # NFT résultat
-        print(f"\n[9] Mint NFT de preuve on-chain...")
-        nft_result = await loop.run_in_executor(
-            None, partial(mint_slot, provider_id, {
-                "taxon": 2, "transfer_fee": 0,
-                "uri": f"telescopegrid://result/{job_id}/{obs_hash[:12]}",
+
+
+        #  NFT résultat 
+        print(f"\n[10] Chercheur minte NFT résultat...")
+        result_nft = await loop.run_in_executor(
+            None, partial(mint_slot, researcher_seed, {
+                "taxon": 2,
+                "transfer_fee": 0,
+                "uri": f"telescopegrid://result/{job_id}/{obs_hash[:16]}",
             })
         )
-        print(f"    NFT résultat : {nft_result[:28]}...")
+        print(f"    NFT résultat : {result_nft[:24]}...")
 
     print("\n" + "═" * 56)
     print("  ✓ Mission accomplie !")
@@ -380,19 +390,21 @@ async def run_telescope_demo(provider_id, researcher_id, captures):
     print("═" * 56 + "\n")
 
 
-# ─── Entry point ──────────────────────────────────────────────────────────────
+#  Point d'entrée pour client.py (passe des adresses) 
 
-if __name__ == "__main__":
-    _, provider_id   = add_wallet("CERN",   "fournisseur")
-    _, researcher_id = add_wallet("Arnaud", "chercheur")
-    print(f"CERN   : {get_wallet(provider_id).address}")
-    print(f"Arnaud : {get_wallet(researcher_id).address}")
+async def run_telescope_client(provider_address: str, researcher_address: str, amount_xrp: float = 1.0):
+    """Appelé par client.py — seul le chercheur a besoin d'une seed."""
+    researcher_seed = _find_seed(researcher_address)
     print("\nContrôles : Flèches = pointer  |  Espace = capturer  |  Entrée = envoyer  |  Q = quitter")
     input("\nAppuyez sur ENTRÉE pour ouvrir le télescope...")
-
     captures = run_controller()
-
     if not captures:
         print("Aucune capture — démo annulée.")
     else:
-        asyncio.run(run_telescope_demo(provider_id, researcher_id, captures))
+        await run_telescope_demo(provider_address, researcher_seed, captures, amount_xrp)
+
+
+#  Entry point 
+
+if __name__ == "__main__":
+    print("Lancez via : python3 client.py telescope --client rXXX --provider rYYY")

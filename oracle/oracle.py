@@ -1,8 +1,6 @@
 import asyncio
-import json
 import logging
 import sys
-import uuid
 from typing import Optional
 
 import structlog
